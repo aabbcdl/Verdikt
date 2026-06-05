@@ -2,7 +2,9 @@
  * Claude Code CLI driver — the only place we invoke `claude`.
  *
  * Uses `claude --print --output-format json` for headless execution.
- * Implements idle-timeout (resets on each chunk of output), NOT a hard wall-clock kill.
+ * Implements two timeouts:
+ * - Idle timeout: resets on each chunk of output (default 5 min)
+ * - Absolute timeout: never resets, hard wall-clock kill (default 10 min)
  *
  * Key design: passes user prompt via stdin to avoid shell-escaping issues
  * with multi-line prompts on Windows.
@@ -60,6 +62,8 @@ export async function callClaude(
     let stderr = "";
     let timedOut = false;
     let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    let absoluteTimer: ReturnType<typeof setTimeout> | null = null;
+    let resolved = false;
 
     const child: ChildProcess = spawn(cmdStr, [], {
       cwd: input.cwd,
@@ -78,23 +82,39 @@ export async function callClaude(
       child.stdin.end();
     }
 
+    const killProcess = (_reason: string) => {
+      if (resolved) return;
+      resolved = true;
+      timedOut = true;
+      try {
+        child.kill("SIGTERM");
+      } catch {
+        /* already dead */
+      }
+      setTimeout(() => {
+        try {
+          child.kill("SIGKILL");
+        } catch {
+          /* already dead */
+        }
+      }, 5000);
+    };
+
     const resetIdle = () => {
       if (idleTimer) clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
-        timedOut = true;
-        child.kill("SIGTERM");
-        setTimeout(() => {
-          try {
-            child.kill("SIGKILL");
-          } catch {
-            // already dead
-          }
-        }, 5000);
+        killProcess("idle");
       }, timeoutMs);
     };
 
     // Start the idle timer immediately
     resetIdle();
+
+    // Start the absolute timer — never resets, hard kill
+    const absoluteTimeoutMs = config.defaultAbsoluteTimeoutMs;
+    absoluteTimer = setTimeout(() => {
+      killProcess("absolute");
+    }, absoluteTimeoutMs);
 
     // Streaming state
     let streamBuffer = "";
@@ -143,6 +163,7 @@ export async function callClaude(
 
     child.on("close", (code) => {
       if (idleTimer) clearTimeout(idleTimer);
+      if (absoluteTimer) clearTimeout(absoluteTimer);
 
       // Cleanup temp file
       try {
@@ -154,10 +175,11 @@ export async function callClaude(
       const durationMs = Date.now() - t0;
 
       if (timedOut) {
+        const timeoutType = durationMs >= absoluteTimeoutMs ? "absolute" : "idle";
         resolve({
           text:
             stdout ||
-            `[TIMEOUT after ${durationMs}ms] Claude Code produced no output for ${timeoutMs}ms`,
+            `[TIMEOUT after ${durationMs}ms] Claude Code ${timeoutType} timeout (${timeoutType === "absolute" ? absoluteTimeoutMs : timeoutMs}ms)`,
           timedOut: true,
           durationMs,
         });
@@ -182,6 +204,7 @@ export async function callClaude(
 
     child.on("error", (err) => {
       if (idleTimer) clearTimeout(idleTimer);
+      if (absoluteTimer) clearTimeout(absoluteTimer);
       try {
         unlinkSync(tmpFile);
       } catch {

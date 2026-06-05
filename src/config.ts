@@ -10,8 +10,10 @@ export interface VerdiktConfig {
   model: string;
   /** Max iterations per run (overridable per task) */
   defaultMaxIterations: number;
-  /** Default idle timeout per Claude call in ms */
+  /** Default idle timeout per Claude call in ms (resets on output) */
   defaultTimeoutMs: number;
+  /** Default absolute timeout per Claude call in ms (never resets, hard kill) */
+  defaultAbsoluteTimeoutMs: number;
   /** Directory for run artifacts */
   stateDir: string;
   /** Max concurrent iterations (MVP is always 1) */
@@ -24,6 +26,10 @@ const DEFAULTS: VerdiktConfig = {
   model: process.env.VERDIKT_MODEL ?? "sonnet",
   defaultMaxIterations: Number.parseInt(process.env.VERDIKT_MAX_ITERATIONS ?? "5", 10),
   defaultTimeoutMs: Number.parseInt(process.env.VERDIKT_TIMEOUT_MS ?? "300000", 10), // 5 min
+  defaultAbsoluteTimeoutMs: Number.parseInt(
+    process.env.VERDIKT_ABSOLUTE_TIMEOUT_MS ?? "600000",
+    10,
+  ), // 10 min
   stateDir: process.env.VERDIKT_STATE_DIR ?? ".verdikt",
   concurrency: 1,
   verbose: process.env.VERDIKT_VERBOSE === "1" || process.env.VERDIKT_VERBOSE === "true",

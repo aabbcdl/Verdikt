@@ -31,6 +31,7 @@ import {
   captureTestBaseline,
   checkTestIntegrity,
 } from "../workspace/integrity.js";
+import { acquireLock, releaseLock } from "../workspace/lock.js";
 import { scanPatchRisk } from "../workspace/semantic-scanner.js";
 import {
   applyFinalPatch,
@@ -90,6 +91,18 @@ export async function runSupervisorLoop(
     runDir = await initRun(stateDir, runId);
     // Save task spec for apply/discard commands
     await writeFile(join(runDir, "task.json"), JSON.stringify(activeTask, null, 2));
+  }
+
+  // ── Concurrency lock ──────────────────────────────────────────────────
+  if (!options.resumeFrom) {
+    const locked = acquireLock(stateDir, activeTask.repoPath, runId);
+    if (!locked) {
+      const { checkLock } = await import("../workspace/lock.js");
+      const holder = checkLock(stateDir, activeTask.repoPath);
+      throw new Error(
+        `Repository is already locked by run ${holder?.runId ?? "unknown"}. Only one run per repository is allowed at a time. Use "verdikt list" to see active runs.`,
+      );
+    }
   }
 
   // ── M2: Workspace isolation ────────────────────────────────────────────
@@ -499,6 +512,7 @@ export async function runSupervisorLoop(
           }
         }
 
+        releaseLock(stateDir, activeTask.repoPath);
         return result;
       }
 
@@ -526,9 +540,10 @@ export async function runSupervisorLoop(
       log("  ▸ Workspace discarded (max iterations reached)");
     }
 
+    releaseLock(stateDir, activeTask.repoPath);
     return result;
   } catch (err) {
-    // On any error, ensure we clean up the worktree
+    // On any error, ensure we clean up the worktree and release lock
     if (useWorktree && worktreeInfo) {
       log("  ▸ Error occurred, discarding workspace...");
       try {
@@ -537,6 +552,498 @@ export async function runSupervisorLoop(
         // Best effort cleanup
       }
     }
+    releaseLock(stateDir, activeTask.repoPath);
+    throw err;
+  }
+}
+
+/**
+ * Resume a previously interrupted run.
+ *
+ * Loads state from the saved run directory and continues from where it left off.
+ */
+export async function resumeSupervisorLoop(
+  runDir: string,
+  options: SupervisorOptions = {},
+): Promise<RunResult> {
+  const config = getConfig();
+  const stateDir = config.stateDir;
+
+  const resumeState = await loadRunState(runDir);
+  if (!resumeState) {
+    throw new Error(`Cannot resume: no state.json found in ${runDir}`);
+  }
+
+  const runId = runDir.split(/[/\\]/).pop() ?? "unknown";
+  const activeTask = resumeState.task;
+  const startIteration = resumeState.nextIteration;
+
+  log(`\n🔄 Resuming run ${runId} from iteration ${startIteration + 1}\n`);
+
+  return executeLoop(activeTask, runId, runDir, stateDir, {
+    ...options,
+    startIteration,
+    resumeState,
+  });
+}
+
+/**
+ * Shared iteration logic for both normal and resume runs.
+ *
+ * This is the core loop: executor → evidence → integrity → judge → verifier → stop.
+ */
+async function executeLoop(
+  task: TaskSpec,
+  runId: string,
+  runDir: string,
+  stateDir: string,
+  options: SupervisorOptions & {
+    startIteration?: number;
+    resumeState?: Awaited<ReturnType<typeof loadRunState>>;
+  } = {},
+): Promise<RunResult> {
+  const useWorktree = !options.skipWorktree;
+  const useIntegrity = !options.skipIntegrity;
+  const startIteration = options.startIteration ?? 0;
+  const resumeState = options.resumeState ?? null;
+
+  let workDir = task.repoPath;
+  let worktreeInfo: Awaited<ReturnType<typeof createRunWorktree>> | null = null;
+  let baseline: TestBaseline | null = null;
+
+  if (useWorktree && !resumeState) {
+    log("  ▸ Creating isolated workspace...");
+    worktreeInfo = await createRunWorktree(task.repoPath, runDir, runId);
+    workDir = worktreeInfo.worktreePath;
+    log(`  ▸ Workspace: ${workDir}`);
+    log(`  ▸ Base commit: ${worktreeInfo.baseCommit.slice(0, 8)}`);
+  }
+
+  if (useIntegrity && !resumeState) {
+    log("  ▸ Capturing test baseline...");
+    baseline = await captureTestBaseline(workDir);
+    log(
+      `  ▸ Baseline: ${baseline.fileHashes.size} test files, ${baseline.assertionCounts.size} assertion groups`,
+    );
+  }
+
+  const iterations: IterationRecord[] = [];
+  let instruction = resumeState?.instruction ?? task.goal;
+  let totalCost = resumeState?.totalCostUsd ?? 0;
+  const integrityViolations: Array<{ iteration: number; violations: string[] }> = [];
+
+  log(`\n${"═".repeat(60)}`);
+  log(`Verdikt — Run ${runId}`);
+  log(`Task: ${task.id} — ${task.goal}`);
+  log(`Max iterations: ${task.maxIterations} | State: ${runDir}`);
+  log(`Workspace: ${useWorktree ? "isolated (git worktree)" : "direct"}`);
+  log(`${"═".repeat(60)}\n`);
+
+  const startTime = resumeState?.totalDurationMs
+    ? Date.now() - resumeState.totalDurationMs
+    : Date.now();
+
+  try {
+    for (let i = startIteration; i < task.maxIterations; i++) {
+      log(`── Iteration ${i + 1}/${task.maxIterations} ──`);
+
+      // M5.1: Record pre-executor HEAD so patch always captures executor's changes
+      let preExecutorCommit: string | undefined;
+      if (useWorktree && worktreeInfo) {
+        preExecutorCommit = (await getHeadCommit(workDir)).trim();
+      }
+
+      // (1) Executor: make code changes in the worktree
+      log("  ▸ Executor running...");
+      const useStreaming = options.stream !== false;
+      const execResult = await runExecutor(
+        { ...task, repoPath: workDir },
+        instruction,
+        useStreaming
+          ? {
+              onChunk: (text) => {
+                process.stdout.write(text);
+              },
+              onComplete: () => {
+                process.stdout.write("\n");
+              },
+            }
+          : undefined,
+      );
+      log(
+        `  ▸ Executor done (${execResult.durationMs}ms${execResult.costUsd ? `, $${execResult.costUsd.toFixed(4)}` : ""})`,
+      );
+
+      if (execResult.costUsd) totalCost += execResult.costUsd;
+
+      // Budget check after executor
+      if (task.maxBudgetUsd) {
+        const pct = totalCost / task.maxBudgetUsd;
+        if (pct >= 1.0) {
+          warn(`  💰 Budget exceeded: $${totalCost.toFixed(2)} / $${task.maxBudgetUsd.toFixed(2)}`);
+        } else if (pct >= 0.8) {
+          warn(
+            `  💰 Budget warning: $${totalCost.toFixed(2)} / $${task.maxBudgetUsd.toFixed(2)} (${(pct * 100).toFixed(0)}%)`,
+          );
+        }
+      }
+
+      // (2) Capture diff (against pre-executor HEAD) and checkpoint
+      let changedFiles: string[] = [];
+      let patchPath: string | undefined;
+      let iterLinesAdded = 0;
+      let iterLinesDeleted = 0;
+
+      if (useWorktree && worktreeInfo) {
+        const diff = await captureIterationDiff(
+          workDir,
+          worktreeInfo.evidenceDir,
+          i,
+          preExecutorCommit,
+        );
+        changedFiles = diff.changedFiles;
+        patchPath = diff.patchPath;
+        iterLinesAdded = diff.linesAdded;
+        iterLinesDeleted = diff.linesDeleted;
+        await checkpointIteration(workDir, i);
+        log(
+          `  ▸ Patch: ${patchPath} (${changedFiles.length} files, +${iterLinesAdded}/-${iterLinesDeleted})`,
+        );
+      } else {
+        const { collectEvidence } = await import("../workspace/collectEvidence.js");
+        changedFiles = await collectEvidence(workDir);
+      }
+      log(`  ▸ Changed files: ${changedFiles.length > 0 ? changedFiles.join(", ") : "(none)"}`);
+
+      // (3) M2: Integrity check
+      let integrityOk = true;
+      if (useIntegrity && baseline) {
+        const integrity = await checkTestIntegrity(workDir, baseline, task.integrity ?? {});
+        if (!integrity.passed) {
+          integrityOk = false;
+          const critViolations = integrity.violations.filter((v) => v.severity === "critical");
+          integrityViolations.push({
+            iteration: i,
+            violations: critViolations.map((v) => `[${v.rule}] ${v.detail}`),
+          });
+          log(`  ⚠ INTEGRITY VIOLATION: ${critViolations.length} critical issue(s)`);
+          for (const v of critViolations) {
+            log(`    • ${v.rule}: ${v.detail}`);
+          }
+        } else {
+          log("  ▸ Integrity: OK ✓");
+        }
+      }
+
+      // (4) Judge: objective verification (run in worktree)
+      log("  ▸ Judges running...");
+      const judge = await runJudges(task.acceptance, workDir);
+      const passedCount = judge.checks.filter((c) => c.passed).length;
+      log(`  ▸ Judges: ${passedCount}/${judge.checks.length} passed ${judge.passed ? "✅" : "❌"}`);
+
+      // M4: Semantic risk gate check (after judge, before verifier)
+      let semanticGateFailed = false;
+      let semanticFindings: import("../workspace/semantic-scanner.js").SemanticRiskResult | null =
+        null;
+      if (task.semantic?.maxRisk && useWorktree && worktreeInfo) {
+        try {
+          const { readFile } = await import("node:fs/promises");
+          const patchPath = join(worktreeInfo.evidenceDir, `iteration-${i}.patch`);
+          const patchContent = await readFile(patchPath, "utf-8");
+          const { scanPatchRisk } = await import("../workspace/semantic-scanner.js");
+          semanticFindings = scanPatchRisk(patchContent, changedFiles);
+
+          const riskOrder = { none: 0, low: 1, medium: 2, high: 3 };
+          const maxAllowed = riskOrder[task.semantic.maxRisk];
+          const actualRisk = riskOrder[semanticFindings.level];
+
+          if (actualRisk > maxAllowed && judge.passed) {
+            semanticGateFailed = true;
+            log(
+              `  ⚠ SEMANTIC GATE FAILED: risk=${semanticFindings.level}, max=${task.semantic.maxRisk}`,
+            );
+            for (const f of semanticFindings.findings.slice(0, 3)) {
+              log(`    • [${f.severity}] ${f.rule}: ${f.snippet}`);
+            }
+          } else if (judge.passed) {
+            log(`  ▸ Semantic risk: ${semanticFindings.level} ≤ ${task.semantic.maxRisk} ✓`);
+          }
+        } catch {
+          // Patch read failed — don't block
+        }
+      }
+
+      // If integrity failed AND judge passed, override: this is suspicious
+      if (!integrityOk && judge.passed) {
+        log("  ⚠ SUSPICIOUS: Judge passed but integrity violations detected");
+        // Don't override judge.passed, but flag it in the record
+      }
+
+      // If semantic gate failed, override judge.passed for stop decision
+      const effectiveJudge = semanticGateFailed
+        ? {
+            ...judge,
+            passed: false,
+            checks: [
+              ...judge.checks,
+              {
+                name: "semantic-risk",
+                passed: false,
+                output: `Semantic risk ${semanticFindings?.level} exceeds max ${task.semantic?.maxRisk}`,
+                exitCode: 1,
+                durationMs: 0,
+              },
+            ],
+          }
+        : judge;
+
+      // (5) Verifier: interpret judge results, generate next instruction
+      log("  ▸ Verifier running...");
+      const verifierResult = await runVerifier(
+        { ...task, repoPath: workDir },
+        effectiveJudge,
+        execResult.text,
+      );
+      const verdict = verifierResult.verdict;
+      if (verifierResult.costUsd) totalCost += verifierResult.costUsd;
+      log(
+        `  ▸ Verifier: done=${verdict.done}, problems=${verdict.problems.length}${verifierResult.costUsd ? `, $${verifierResult.costUsd.toFixed(4)}` : ""}`,
+      );
+
+      // Budget check after verifier
+      if (task.maxBudgetUsd) {
+        const pct = totalCost / task.maxBudgetUsd;
+        if (pct >= 1.0) {
+          warn(`  💰 Budget exceeded: $${totalCost.toFixed(2)} / $${task.maxBudgetUsd.toFixed(2)}`);
+        } else if (pct >= 0.8) {
+          warn(
+            `  💰 Budget warning: $${totalCost.toFixed(2)} / $${task.maxBudgetUsd.toFixed(2)} (${(pct * 100).toFixed(0)}%)`,
+          );
+        }
+      }
+      if (verdict.problems.length > 0) {
+        for (const p of verdict.problems) {
+          log(`    • ${p}`);
+        }
+      }
+
+      // (6) Record this iteration (M3: extended fields)
+      const iterCost = (execResult.costUsd ?? 0) + (verifierResult.costUsd ?? 0);
+
+      // Build integrity snapshot for this iteration
+      let integritySnapshot: import("../types.js").IntegritySnapshot | undefined;
+      if (useIntegrity && baseline) {
+        const check = await checkTestIntegrity(workDir, baseline, task.integrity ?? {});
+        const crits = check.violations.filter((v) => v.severity === "critical");
+        const warns = check.violations.filter((v) => v.severity === "warning");
+        integritySnapshot = {
+          status: crits.length > 0 ? "violations" : "ok",
+          criticalCount: crits.length,
+          warningCount: warns.length,
+          issues: check.violations.map((v) => ({ rule: v.rule, detail: v.detail })),
+        };
+      }
+
+      const record: IterationRecord = {
+        index: i,
+        executorOutput: execResult.text,
+        changedFiles,
+        judge: effectiveJudge,
+        verifierVerdict: verdict,
+        tokensUsed: undefined,
+        costUsd: iterCost > 0 ? iterCost : undefined,
+        durationMs: execResult.durationMs,
+        // M3 fields
+        patchPath: patchPath ?? undefined,
+        integrity: integritySnapshot,
+        judgeExitCode: judge.checks[0]?.exitCode,
+        linesAdded: iterLinesAdded || undefined,
+        linesDeleted: iterLinesDeleted || undefined,
+      };
+      iterations.push(record);
+      await recordIteration(runDir, record);
+
+      // M6: Save run state for resume capability
+      await saveRunState(runDir, {
+        task,
+        instruction,
+        nextIteration: i + 1,
+        totalCostUsd: totalCost,
+        totalDurationMs: Date.now() - startTime,
+        lastSavedAt: new Date().toISOString(),
+        useWorktree,
+        useIntegrity,
+      });
+
+      // (7) Stop decision
+      const decision = decideStop(iterations, task, totalCost);
+
+      if (decision.stop) {
+        const totalDurationMs = Date.now() - startTime;
+        log(`\n${"═".repeat(60)}`);
+        log(`STOP: ${decision.reason} after ${iterations.length} iteration(s)`);
+        log(`Duration: ${(totalDurationMs / 1000).toFixed(1)}s | Cost: $${totalCost.toFixed(4)}`);
+        log(`${"═".repeat(60)}\n`);
+
+        // M3: Compute patch stats
+        let finalPatchPath: string | undefined;
+        const totalLinesAdded = 0;
+        const totalLinesDeleted = 0;
+        if (useWorktree && worktreeInfo) {
+          finalPatchPath = join(worktreeInfo.evidenceDir, "final.patch");
+        }
+
+        // M4: Semantic risk scan (warning only)
+        let semanticRiskSummary: import("../types.js").SemanticRiskSummary | undefined;
+        if (finalPatchPath && decision.reason === "passed") {
+          try {
+            const { readFile } = await import("node:fs/promises");
+            const patchContent = await readFile(finalPatchPath, "utf-8");
+            const allChangedSrc = [...new Set(iterations.flatMap((it) => it.changedFiles))];
+            const risk = scanPatchRisk(patchContent, allChangedSrc);
+            semanticRiskSummary = {
+              level: risk.level,
+              findingCount: risk.findings.length,
+              highCount: risk.findings.filter((f) => f.severity === "high").length,
+              mediumCount: risk.findings.filter((f) => f.severity === "medium").length,
+              lowCount: risk.findings.filter((f) => f.severity === "low").length,
+              topFindings: risk.findings.slice(0, 5).map((f) => ({
+                rule: f.rule,
+                detail: f.detail,
+                file: f.file,
+                snippet: f.snippet,
+              })),
+            };
+            if (risk.level !== "none") {
+              log(`  ⚠ Semantic risk: ${risk.level} (${risk.findings.length} finding(s))`);
+              for (const f of risk.findings.slice(0, 3)) {
+                log(`    • [${f.severity}] ${f.rule}: ${f.snippet}`);
+              }
+            } else {
+              log("  ▸ Semantic risk: none ✓");
+            }
+          } catch {
+            // Patch read failed — not critical
+          }
+        }
+
+        const result: RunResult = {
+          reason: decision.reason ?? "max_iterations",
+          iterations,
+          totalDurationMs,
+          totalCostUsd: totalCost,
+          // M3 fields
+          runId,
+          taskId: task.id,
+          workspace:
+            useWorktree && worktreeInfo
+              ? {
+                  path: worktreeInfo.worktreePath,
+                  baseCommit: worktreeInfo.baseCommit,
+                  originalRepoCleanBeforeApply: true,
+                  mode: "isolated",
+                }
+              : {
+                  path: workDir,
+                  baseCommit: "",
+                  originalRepoCleanBeforeApply: false,
+                  mode: "direct",
+                },
+          patch: {
+            finalPatchPath,
+            filesChanged: [...new Set(iterations.flatMap((it) => it.changedFiles))].length,
+            linesAdded: totalLinesAdded,
+            linesDeleted: totalLinesDeleted,
+          },
+          integritySummary:
+            integrityViolations.length > 0
+              ? {
+                  status: "violations",
+                  criticalCount: integrityViolations.reduce((s, v) => s + v.violations.length, 0),
+                  warningCount: 0,
+                  issues: integrityViolations.flatMap((v) =>
+                    v.violations.map((d) => ({ rule: "violation", detail: d })),
+                  ),
+                }
+              : { status: "ok", criticalCount: 0, warningCount: 0, issues: [] },
+          applyStatus: "pending",
+          semanticRisk: semanticRiskSummary,
+        };
+        await writeSummary(runDir, result);
+        await clearRunState(runDir);
+
+        // ── M2: Apply or discard based on outcome ─────────────────────
+        if (decision.reason === "passed" && useWorktree && worktreeInfo) {
+          if (options.autoApply) {
+            log("  ▸ Auto-applying changes to original repo...");
+            await applyFinalPatch(task.repoPath, workDir, worktreeInfo.baseCommit);
+            log("  ▸ Changes applied ✓");
+            await discardRun(task.repoPath, workDir, worktreeInfo.branchName);
+            log("  ▸ Workspace cleaned up ✓");
+          } else {
+            // Save final patch for explicit apply
+            const finalPatch = await getFinalPatch(workDir, worktreeInfo.baseCommit);
+            const patchPath = join(worktreeInfo.evidenceDir, "final.patch");
+            await writeFile(patchPath, finalPatch, "utf-8");
+            log(`  ▸ Run passed. Patch saved: ${patchPath}`);
+            log(`  ▸ To apply: verdikt apply ${runId}`);
+            log(`  ▸ To discard: verdikt discard ${runId}`);
+            // Keep worktree alive for explicit apply/discard
+          }
+        } else if (useWorktree && worktreeInfo) {
+          log("  ▸ Discarding workspace (run did not pass)...");
+          await discardRun(task.repoPath, workDir, worktreeInfo.branchName);
+          log("  ▸ Workspace discarded ✓");
+        }
+
+        if (integrityViolations.length > 0) {
+          log("  ⚠ Integrity violations were detected during this run:");
+          for (const iv of integrityViolations) {
+            log(`    Iteration ${iv.iteration + 1}: ${iv.violations.join("; ")}`);
+          }
+        }
+
+        releaseLock(stateDir, task.repoPath);
+        return result;
+      }
+
+      // (8) Not done — use verifier's instruction for next round
+      instruction = verdict.nextInstruction;
+      log(
+        `  ▸ Next round instruction: ${instruction.slice(0, 200)}${instruction.length > 200 ? "..." : ""}\n`,
+      );
+    }
+
+    // Should not reach here, but handle defensively
+    const totalDurationMs = Date.now() - startTime;
+    const result: RunResult = {
+      reason: "max_iterations",
+      iterations,
+      totalDurationMs,
+      totalCostUsd: totalCost,
+    };
+    await writeSummary(runDir, result);
+    await clearRunState(runDir);
+
+    // Discard on max_iterations
+    if (useWorktree && worktreeInfo) {
+      await discardRun(task.repoPath, workDir, worktreeInfo.branchName);
+      log("  ▸ Workspace discarded (max iterations reached)");
+    }
+
+    releaseLock(stateDir, task.repoPath);
+    return result;
+  } catch (err) {
+    // On any error, ensure we clean up the worktree and release lock
+    if (useWorktree && worktreeInfo) {
+      log("  ▸ Error occurred, discarding workspace...");
+      try {
+        await discardRun(task.repoPath, workDir, worktreeInfo.branchName);
+      } catch {
+        // Best effort cleanup
+      }
+    }
+    releaseLock(stateDir, task.repoPath);
     throw err;
   }
 }
