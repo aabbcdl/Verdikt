@@ -32,6 +32,8 @@ export interface AcceptanceCriteria {
   buildCommand?: string;
   /** Optional lint command */
   lintCommand?: string;
+  /** Timeout in ms for legacy commands (default: 120000 = 2 minutes) */
+  timeoutMs?: number;
   /** M4.2: Structured judge steps (overrides testCommand/buildCommand/lintCommand when present) */
   steps?: JudgeStep[];
   /** M6: Custom judge script (overrides all above when present) */
@@ -60,6 +62,8 @@ export interface JudgeStep {
   cwd?: string;
   /** Whether this step is required (default true). Optional steps don't block on failure. */
   required?: boolean;
+  /** Timeout in ms for this step (default: 120000 = 2 minutes) */
+  timeoutMs?: number;
 }
 
 /** M6: Expected result from a custom judge script */

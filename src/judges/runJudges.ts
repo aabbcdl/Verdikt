@@ -53,15 +53,16 @@ export async function runJudges(acceptance: AcceptanceCriteria, cwd: string): Pr
     };
   }
 
+  const timeoutMs = acceptance.timeoutMs ?? 120_000;
   const checks: JudgeCheck[] = [];
-  checks.push(await runCheck("test", acceptance.testCommand, cwd));
+  checks.push(await runCheck("test", acceptance.testCommand, cwd, timeoutMs));
 
   if (acceptance.buildCommand) {
-    checks.push(await runCheck("build", acceptance.buildCommand, cwd));
+    checks.push(await runCheck("build", acceptance.buildCommand, cwd, timeoutMs));
   }
 
   if (acceptance.lintCommand) {
-    checks.push(await runCheck("lint", acceptance.lintCommand, cwd));
+    checks.push(await runCheck("lint", acceptance.lintCommand, cwd, timeoutMs));
   }
 
   return {
@@ -107,6 +108,7 @@ async function runStep(step: JudgeStep, defaultCwd: string): Promise<JudgeStepRe
   const t0 = Date.now();
   const stepCwd = step.cwd ?? defaultCwd;
   const args = step.args ?? [];
+  const timeoutMs = step.timeoutMs ?? 120_000; // Default 2 minutes
 
   return new Promise<JudgeStepResult>((resolve) => {
     let stdout = "";
@@ -119,10 +121,10 @@ async function runStep(step: JudgeStep, defaultCwd: string): Promise<JudgeStepRe
       stdio: ["ignore", "pipe", "pipe"],
     });
 
-    // Set timeout
+    // Set configurable timeout
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
-    }, 120_000);
+    }, timeoutMs);
 
     child.stdout?.on("data", (chunk: Buffer) => {
       stdout += chunk.toString();
@@ -162,7 +164,12 @@ async function runStep(step: JudgeStep, defaultCwd: string): Promise<JudgeStepRe
 /**
  * Run a single command and capture its result (legacy mode).
  */
-async function runCheck(name: string, command: string, cwd: string): Promise<JudgeCheck> {
+async function runCheck(
+  name: string,
+  command: string,
+  cwd: string,
+  timeoutMs = 120_000,
+): Promise<JudgeCheck> {
   const t0 = Date.now();
 
   return new Promise<JudgeCheck>((resolve) => {
@@ -170,7 +177,7 @@ async function runCheck(name: string, command: string, cwd: string): Promise<Jud
       command,
       {
         cwd,
-        timeout: 120_000,
+        timeout: timeoutMs,
         env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1" },
         shell: process.platform === "win32" ? "powershell" : undefined,
         encoding: "utf-8",

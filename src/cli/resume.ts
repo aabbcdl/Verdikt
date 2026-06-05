@@ -4,16 +4,18 @@
 
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { runSupervisorLoop } from "../loop/supervisor.js";
-import type { TaskSpec } from "../types.js";
+import { resumeSupervisorLoop } from "../loop/supervisor.js";
+import { cliSuccess, cliWarning, notFoundError } from "./errors.js";
+import { EXIT_CODES } from "./errors.js";
 
 export async function handleResume(args: string[]): Promise<void> {
   const runId = args[0];
   if (!runId) {
-    console.error("\n❌ Run ID is required");
-    console.error("Usage: verdikt resume <run-id>");
-    console.error('\nUse "verdikt list" to see available runs.');
-    process.exit(1);
+    notFoundError(
+      "Run ID",
+      "",
+      'Usage: verdikt resume <run-id>\nUse "verdikt list" to see available runs.',
+    );
   }
 
   const config = (await import("../config.js")).getConfig();
@@ -23,12 +25,18 @@ export async function handleResume(args: string[]): Promise<void> {
 
   if (!existsSync(statePath)) {
     if (existsSync(summaryPath)) {
-      console.error(`\n❌ Run ${runId} already completed (has summary.json). Cannot resume.`);
+      notFoundError(
+        "Resumable run",
+        runId,
+        `Run ${runId} already completed (has summary.json). Cannot resume.`,
+      );
     } else {
-      console.error(`\n❌ Run ${runId} not found or has no saved state.`);
+      notFoundError(
+        "Run",
+        runId,
+        'Run not found or has no saved state. Use "verdikt list" to see available runs.',
+      );
     }
-    console.error('\nUse "verdikt list" to see available runs.');
-    process.exit(1);
   }
 
   const jsonOutput = args.includes("--json");
@@ -45,18 +53,8 @@ export async function handleResume(args: string[]): Promise<void> {
     }
   }
 
-  // Resume mode: task will be loaded from saved state inside runSupervisorLoop
-  const placeholderTask: TaskSpec = {
-    id: "",
-    goal: "",
-    repoPath: "",
-    acceptance: {},
-    maxIterations: 0,
-  };
-  const result = await runSupervisorLoop(placeholderTask, {
-    resumeFrom: runDir,
-    stream: !jsonOutput,
-  });
+  // Resume uses resumeSupervisorLoop directly (no placeholderTask needed)
+  const result = await resumeSupervisorLoop(runDir, { stream: !jsonOutput });
 
   if (jsonOutput) {
     const output = {
@@ -72,10 +70,10 @@ export async function handleResume(args: string[]): Promise<void> {
   }
 
   if (result.reason === "passed") {
-    if (!jsonOutput) console.log("✅ Task completed successfully!");
-    process.exit(0);
+    if (!jsonOutput) cliSuccess("Task completed successfully!");
+    process.exit(EXIT_CODES.SUCCESS);
   } else {
-    if (!jsonOutput) console.log(`⚠️  Task stopped: ${result.reason}`);
-    process.exit(1);
+    if (!jsonOutput) cliWarning(`Task stopped: ${result.reason}`);
+    process.exit(EXIT_CODES.TASK_FAILED);
   }
 }
