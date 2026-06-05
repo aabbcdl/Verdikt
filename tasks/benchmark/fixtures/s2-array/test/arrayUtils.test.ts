@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { findMax, chunk } from "../src/arrayUtils.js";
+import { describe, expect, it } from "vitest";
+import { chunk, findMax } from "../src/arrayUtils.js";
 
 describe("findMax", () => {
   it("finds max in positive array", () => expect(findMax([1, 3, 2])).toBe(3));
@@ -9,7 +9,12 @@ describe("findMax", () => {
 });
 
 describe("chunk", () => {
-  it("chunks evenly", () => expect(chunk([1, 2, 3, 4], 2)).toEqual([[1, 2], [3, 4]]));
-  it("keeps last incomplete chunk", () => expect(chunk([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]));
+  it("chunks evenly", () =>
+    expect(chunk([1, 2, 3, 4], 2)).toEqual([
+      [1, 2],
+      [3, 4],
+    ]));
+  it("keeps last incomplete chunk", () =>
+    expect(chunk([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]));
   it("handles size larger than array", () => expect(chunk([1, 2], 5)).toEqual([[1, 2]]));
 });

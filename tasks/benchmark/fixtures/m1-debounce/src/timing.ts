@@ -8,11 +8,11 @@ export function debounce<T extends (...args: any[]) => any>(
   fn: T,
   delayMs: number,
 ): (...args: Parameters<T>) => void {
-  let timer: ReturnType<typeof setTimeout> | null = null;
+  let _timer: ReturnType<typeof setTimeout> | null = null;
 
-  return (...args: Parameters<T>) => {
+  return (..._args: Parameters<T>) => {
     // Bug: should clear previous timer first
-    timer = setTimeout(() => {
+    _timer = setTimeout(() => {
       // Bug: should spread args: fn(...args)
       fn();
     }, delayMs);

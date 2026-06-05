@@ -2,16 +2,12 @@
  * Tests for test integrity guard and anti-cheating detection.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { writeFile, mkdir, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { exec } from "node:child_process";
-import {
-  captureTestBaseline,
-  checkTestIntegrity,
-  type TestBaseline,
-} from "./integrity.js";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { type TestBaseline, captureTestBaseline, checkTestIntegrity } from "./integrity.js";
 
 const TEST_DIR = join(tmpdir(), `verdikt-test-${Date.now()}`);
 
@@ -48,11 +44,6 @@ async function writeFileRel(path: string, content: string): Promise<void> {
   await writeFile(join(TEST_DIR, path), content, "utf-8");
 }
 
-async function readFileRel(path: string): Promise<string> {
-  const { readFile } = await import("node:fs/promises");
-  return readFile(join(TEST_DIR, path), "utf-8");
-}
-
 // ── Baseline capture ─────────────────────────────────────────────────────────
 
 describe("captureTestBaseline", () => {
@@ -70,11 +61,10 @@ describe("captureTestBaseline", () => {
   });
 
   it("counts multiple assertions", async () => {
-    await writeFileRel("test/math.test.ts", [
-      "expect(1+1).toBe(2);",
-      "expect(2+2).toBe(4);",
-      "expect(3+3).toBe(6);",
-    ].join("\n"));
+    await writeFileRel(
+      "test/math.test.ts",
+      ["expect(1+1).toBe(2);", "expect(2+2).toBe(4);", "expect(3+3).toBe(6);"].join("\n"),
+    );
     await commitAll();
 
     const baseline = await captureTestBaseline(TEST_DIR);
@@ -127,10 +117,13 @@ describe("checkTestIntegrity", () => {
     const baseline = await captureTestBaseline(TEST_DIR);
 
     // Modify to add it.skip (baseline was different)
-    await writeFileRel("test/sum.test.ts", [
-      "it('test', () => { expect(1).toBe(1); });",
-      "it.skip('skipped', () => { expect(2).toBe(2); });",
-    ].join("\n"));
+    await writeFileRel(
+      "test/sum.test.ts",
+      [
+        "it('test', () => { expect(1).toBe(1); });",
+        "it.skip('skipped', () => { expect(2).toBe(2); });",
+      ].join("\n"),
+    );
 
     const result = await checkTestIntegrity(TEST_DIR, baseline);
 
@@ -153,10 +146,10 @@ describe("checkTestIntegrity", () => {
   });
 
   it("detects decreased assertion count", async () => {
-    await writeFileRel("test/sum.test.ts", [
-      "expect(1+1).toBe(2);",
-      "expect(2+2).toBe(4);",
-    ].join("\n"));
+    await writeFileRel(
+      "test/sum.test.ts",
+      ["expect(1+1).toBe(2);", "expect(2+2).toBe(4);"].join("\n"),
+    );
     await commitAll();
     const baseline = await captureTestBaseline(TEST_DIR);
 

@@ -16,10 +16,7 @@ export async function collectEvidence(repoPath: string): Promise<string[]> {
     execAsync("git ls-files --others --exclude-standard", repoPath),
   ]);
 
-  const files = [
-    ...modified.split("\n").filter(Boolean),
-    ...untracked.split("\n").filter(Boolean),
-  ];
+  const files = [...modified.split("\n").filter(Boolean), ...untracked.split("\n").filter(Boolean)];
 
   // Deduplicate and sort
   return [...new Set(files)].sort();

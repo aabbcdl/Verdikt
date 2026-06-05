@@ -2,9 +2,9 @@
  * Tests for StopCondition — the four stop reason branches.
  */
 
-import { describe, it, expect } from "vitest";
-import { decideStop, sameFailures } from "./stopCondition.js";
+import { describe, expect, it } from "vitest";
 import type { IterationRecord, JudgeResult, TaskSpec } from "../types.js";
+import { decideStop, sameFailures } from "./stopCondition.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -24,7 +24,10 @@ function makeIteration(overrides: Partial<IterationRecord> = {}): IterationRecor
     index: 0,
     executorOutput: "did stuff",
     changedFiles: [],
-    judge: { passed: false, checks: [{ name: "test", passed: false, output: "fail", exitCode: 1, durationMs: 100 }] },
+    judge: {
+      passed: false,
+      checks: [{ name: "test", passed: false, output: "fail", exitCode: 1, durationMs: 100 }],
+    },
     verifierVerdict: { done: false, problems: ["fail"], nextInstruction: "fix it" },
     durationMs: 1000,
     ...overrides,
@@ -34,7 +37,15 @@ function makeIteration(overrides: Partial<IterationRecord> = {}): IterationRecor
 function makeJudge(passed: boolean, checkName = "test"): JudgeResult {
   return {
     passed,
-    checks: [{ name: checkName, passed, output: passed ? "ok" : "FAIL", exitCode: passed ? 0 : 1, durationMs: 100 }],
+    checks: [
+      {
+        name: checkName,
+        passed,
+        output: passed ? "ok" : "FAIL",
+        exitCode: passed ? 0 : 1,
+        durationMs: 100,
+      },
+    ],
   };
 }
 
@@ -55,10 +66,7 @@ describe("decideStop", () => {
 
   it("stops with 'max_iterations' when iteration count reached", () => {
     const task = makeTask({ maxIterations: 2 });
-    const iterations = [
-      makeIteration({ index: 0 }),
-      makeIteration({ index: 1 }),
-    ];
+    const iterations = [makeIteration({ index: 0 }), makeIteration({ index: 1 })];
     const result = decideStop(iterations, task, 0);
     expect(result.stop).toBe(true);
     expect(result.reason).toBe("max_iterations");
@@ -90,7 +98,15 @@ describe("decideStop", () => {
       index: 1,
       judge: {
         passed: false,
-        checks: [{ name: "build", passed: false, output: "compile error xyz", exitCode: 1, durationMs: 100 }],
+        checks: [
+          {
+            name: "build",
+            passed: false,
+            output: "compile error xyz",
+            exitCode: 1,
+            durationMs: 100,
+          },
+        ],
       },
     });
     const result = decideStop([iter1, iter2], makeTask(), 0);
@@ -135,11 +151,27 @@ describe("sameFailures", () => {
   it("returns true when same checks fail with same output", () => {
     const a: JudgeResult = {
       passed: false,
-      checks: [{ name: "test", passed: false, output: "AssertionError: expected 3 got 2", exitCode: 1, durationMs: 100 }],
+      checks: [
+        {
+          name: "test",
+          passed: false,
+          output: "AssertionError: expected 3 got 2",
+          exitCode: 1,
+          durationMs: 100,
+        },
+      ],
     };
     const b: JudgeResult = {
       passed: false,
-      checks: [{ name: "test", passed: false, output: "AssertionError: expected 3 got 2", exitCode: 1, durationMs: 100 }],
+      checks: [
+        {
+          name: "test",
+          passed: false,
+          output: "AssertionError: expected 3 got 2",
+          exitCode: 1,
+          durationMs: 100,
+        },
+      ],
     };
     expect(sameFailures(a, b)).toBe(true);
   });
@@ -171,11 +203,27 @@ describe("sameFailures", () => {
   it("returns false when failure output differs in tail", () => {
     const a: JudgeResult = {
       passed: false,
-      checks: [{ name: "test", passed: false, output: "x".repeat(600) + "TAIL_A", exitCode: 1, durationMs: 100 }],
+      checks: [
+        {
+          name: "test",
+          passed: false,
+          output: `${"x".repeat(600)}TAIL_A`,
+          exitCode: 1,
+          durationMs: 100,
+        },
+      ],
     };
     const b: JudgeResult = {
       passed: false,
-      checks: [{ name: "test", passed: false, output: "x".repeat(600) + "TAIL_B", exitCode: 1, durationMs: 100 }],
+      checks: [
+        {
+          name: "test",
+          passed: false,
+          output: `${"x".repeat(600)}TAIL_B`,
+          exitCode: 1,
+          durationMs: 100,
+        },
+      ],
     };
     expect(sameFailures(a, b)).toBe(false);
   });

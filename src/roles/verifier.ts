@@ -42,38 +42,35 @@ export async function runVerifier(
   };
 }
 
-function buildVerifierPrompt(
-  task: TaskSpec,
-  judge: JudgeResult,
-  executorOutput: string,
-): string {
+function buildVerifierPrompt(task: TaskSpec, judge: JudgeResult, executorOutput: string): string {
   const judgeSummary = judge.checks
     .map(
       (c) =>
-        `[${c.passed ? "PASS" : "FAIL"}] ${c.name} (exit ${c.exitCode}, ${c.durationMs}ms)` +
-        (c.passed ? "" : `\n${c.output.slice(-2000)}`), // Last 2k chars for failures
+        `[${c.passed ? "PASS" : "FAIL"}] ${c.name} (exit ${c.exitCode}, ${c.durationMs}ms)${c.passed ? "" : `\n${c.output.slice(-2000)}`}`, // Last 2k chars for failures
     )
     .join("\n\n");
 
   // M4.2: Include structured step results if available
   const stepSummary = judge.stepResults
-    ? `\n\nStructured Steps:\n${judge.stepResults.map((s) =>
-        `  ${s.passed ? "✅" : "❌"} ${s.id} (exit ${s.exitCode}, ${s.durationMs}ms, ${s.required ? "required" : "optional"})` +
-        (s.passed ? "" : `\n    stderr: ${s.stderr.slice(-500)}`)
-      ).join("\n")}`
+    ? `\n\nStructured Steps:\n${judge.stepResults
+        .map(
+          (s) =>
+            `  ${s.passed ? "✅" : "❌"} ${s.id} (exit ${s.exitCode}, ${s.durationMs}ms, ${s.required ? "required" : "optional"})${s.passed ? "" : `\n    stderr: ${s.stderr.slice(-500)}`}`,
+        )
+        .join("\n")}`
     : "";
 
   return [
-    `## Acceptance Criteria`,
+    "## Acceptance Criteria",
     JSON.stringify(task.acceptance, null, 2),
-    ``,
-    `## Judge Results (GROUND TRUTH)`,
+    "",
+    "## Judge Results (GROUND TRUTH)",
     `Overall: ${judge.passed ? "ALL PASSED" : "FAILURES EXIST"}`,
-    ``,
+    "",
     judgeSummary,
     stepSummary,
-    ``,
-    `## Executor Claims`,
+    "",
+    "## Executor Claims",
     executorOutput.slice(-3000), // Last 3k chars
   ].join("\n");
 }

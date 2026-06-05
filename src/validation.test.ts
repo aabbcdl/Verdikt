@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
 import type { TaskSpec } from "./types.js";
 import { validateTaskSpec } from "./validation.js";
 
@@ -25,7 +25,8 @@ describe("validateTaskSpec", () => {
 
   it("fails on missing id", () => {
     const task = makeTask();
-    delete (task as any).id;
+    // biome-ignore lint/suspicious/noExplicitAny: testing validation of missing fields
+    (task as any).id = undefined;
     const result = validateTaskSpec(task, "test.task.json");
     expect(result.valid).toBe(false);
     expect(result.errors[0].field).toBe("id");
@@ -33,7 +34,8 @@ describe("validateTaskSpec", () => {
 
   it("fails on missing goal", () => {
     const task = makeTask();
-    delete (task as any).goal;
+    // biome-ignore lint/suspicious/noExplicitAny: testing validation of missing fields
+    (task as any).goal = undefined;
     const result = validateTaskSpec(task, "test.task.json");
     expect(result.valid).toBe(false);
     expect(result.errors[0].field).toBe("goal");
@@ -41,7 +43,8 @@ describe("validateTaskSpec", () => {
 
   it("fails on missing repoPath", () => {
     const task = makeTask();
-    delete (task as any).repoPath;
+    // biome-ignore lint/suspicious/noExplicitAny: testing validation of missing fields
+    (task as any).repoPath = undefined;
     const result = validateTaskSpec(task, "test.task.json");
     expect(result.valid).toBe(false);
     expect(result.errors[0].field).toBe("repoPath");
@@ -57,7 +60,7 @@ describe("validateTaskSpec", () => {
   it("fails on template placeholder goal", () => {
     const result = validateTaskSpec(
       makeTask({ goal: "Describe what the executor should accomplish" }),
-      "test.task.json"
+      "test.task.json",
     );
     expect(result.valid).toBe(false);
     expect(result.errors[0].field).toBe("goal");
@@ -76,7 +79,8 @@ describe("validateTaskSpec", () => {
 
   it("fails on missing acceptance", () => {
     const task = makeTask();
-    delete (task as any).acceptance;
+    // biome-ignore lint/suspicious/noExplicitAny: testing validation of missing fields
+    (task as any).acceptance = undefined;
     const result = validateTaskSpec(task, "test.task.json");
     expect(result.valid).toBe(false);
     expect(result.errors[0].field).toBe("acceptance");
@@ -96,7 +100,7 @@ describe("validateTaskSpec", () => {
           steps: [{ id: "test", command: "npm", args: ["test"] }],
         },
       }),
-      "test.task.json"
+      "test.task.json",
     );
     expect(result.warnings.some((w) => w.field === "acceptance")).toBe(true);
   });
@@ -105,10 +109,11 @@ describe("validateTaskSpec", () => {
     const result = validateTaskSpec(
       makeTask({
         acceptance: {
+          // biome-ignore lint/suspicious/noExplicitAny: testing validation of invalid steps
           steps: [{ id: "", command: "npm", args: ["test"] } as any],
         },
       }),
-      "test.task.json"
+      "test.task.json",
     );
     expect(result.valid).toBe(false);
   });
@@ -117,10 +122,11 @@ describe("validateTaskSpec", () => {
     const result = validateTaskSpec(
       makeTask({
         acceptance: {
+          // biome-ignore lint/suspicious/noExplicitAny: testing validation of invalid steps
           steps: [{ id: "test", command: "", args: ["test"] } as any],
         },
       }),
-      "test.task.json"
+      "test.task.json",
     );
     expect(result.valid).toBe(false);
   });

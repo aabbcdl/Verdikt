@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { percentage, average } from "../src/mathOps.js";
+import { describe, expect, it } from "vitest";
+import { average, percentage } from "../src/mathOps.js";
 
 describe("percentage", () => {
   it("calculates basic percentage", () => expect(percentage(25, 100)).toBe(25));

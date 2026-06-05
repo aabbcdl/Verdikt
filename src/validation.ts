@@ -1,6 +1,6 @@
 import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import { TaskSpec } from "./types.js";
+import type { TaskSpec } from "./types.js";
 
 export interface ValidationError {
   field: string;
@@ -132,8 +132,8 @@ export function validateTaskSpec(task: TaskSpec, taskFilePath: string): Validati
         fix: 'Add "acceptance": { "steps": [{ "id": "test", "command": "npm", "args": ["test"] }] }',
       });
     }
-    if (hasCustom) {
-      const custom = task.acceptance.custom!;
+    if (hasCustom && task.acceptance.custom) {
+      const custom = task.acceptance.custom;
       if (!custom.script) {
         errors.push({
           field: "acceptance.custom",
@@ -150,8 +150,8 @@ export function validateTaskSpec(task: TaskSpec, taskFilePath: string): Validati
       });
     }
     // Validate steps
-    if (hasSteps) {
-      for (const step of task.acceptance.steps!) {
+    if (hasSteps && task.acceptance.steps) {
+      for (const step of task.acceptance.steps) {
         if (!step.id) {
           errors.push({
             field: "acceptance.steps",

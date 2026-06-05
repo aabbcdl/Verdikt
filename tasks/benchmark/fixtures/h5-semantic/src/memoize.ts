@@ -12,7 +12,7 @@
  * - Must NOT use global mutable state
  */
 
-export function memoize<T, R>(fn: (arg: T) => R): (arg: T) => R {
+export function memoize<T, R>(_fn: (arg: T) => R): (arg: T) => R {
   // TODO: implement this
   // The cache should be local to this closure, not global
   throw new Error("Not implemented");

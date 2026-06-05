@@ -54,19 +54,22 @@ export function computeMetrics(tasks: BenchmarkTaskResult[]): BenchmarkMetrics {
   const expectedOutcomeRate = tasks.length > 0 ? matchedCount / tasks.length : 0;
 
   // Average iterations (only for completed tasks)
-  const avgIterations = completedTasks.length > 0
-    ? completedTasks.reduce((sum, t) => sum + t.iterations, 0) / completedTasks.length
-    : 0;
+  const avgIterations =
+    completedTasks.length > 0
+      ? completedTasks.reduce((sum, t) => sum + t.iterations, 0) / completedTasks.length
+      : 0;
 
   // Average cost
-  const avgCostUsd = completedTasks.length > 0
-    ? completedTasks.reduce((sum, t) => sum + t.costUsd, 0) / completedTasks.length
-    : 0;
+  const avgCostUsd =
+    completedTasks.length > 0
+      ? completedTasks.reduce((sum, t) => sum + t.costUsd, 0) / completedTasks.length
+      : 0;
 
   // Average duration
-  const avgDurationMs = completedTasks.length > 0
-    ? completedTasks.reduce((sum, t) => sum + t.durationMs, 0) / completedTasks.length
-    : 0;
+  const avgDurationMs =
+    completedTasks.length > 0
+      ? completedTasks.reduce((sum, t) => sum + t.durationMs, 0) / completedTasks.length
+      : 0;
 
   // First try pass rate: passed in exactly 1 iteration / total
   const firstTryPass = completedTasks.filter(
@@ -77,9 +80,8 @@ export function computeMetrics(tasks: BenchmarkTaskResult[]): BenchmarkMetrics {
   // Multi-round recovery rate: first failed then passed / all first failed
   const firstRoundFailed = completedTasks.filter((t) => t.iterations > 1);
   const recoveredPassed = firstRoundFailed.filter((t) => t.actualStatus === "passed").length;
-  const multiRoundRecoveryRate = firstRoundFailed.length > 0
-    ? recoveredPassed / firstRoundFailed.length
-    : 0;
+  const multiRoundRecoveryRate =
+    firstRoundFailed.length > 0 ? recoveredPassed / firstRoundFailed.length : 0;
 
   // Failure reasons distribution
   const failureReasons: Record<string, number> = {};
@@ -103,21 +105,20 @@ export function computeMetrics(tasks: BenchmarkTaskResult[]): BenchmarkMetrics {
   ).length;
 
   // Expected-failed tasks that correctly stopped
-  const expectedFailed = completedTasks.filter(
-    (t) => t.expectedOutcome === "failed",
-  );
-  const expectedFailedStopped = expectedFailed.filter(
-    (t) => t.actualStatus === "failed",
-  ).length;
+  const expectedFailed = completedTasks.filter((t) => t.expectedOutcome === "failed");
+  const expectedFailedStopped = expectedFailed.filter((t) => t.actualStatus === "failed").length;
 
   // Average files changed and patch size
   const tasksWithChanges = completedTasks.filter((t) => t.filesChanged > 0);
-  const avgFilesChanged = tasksWithChanges.length > 0
-    ? tasksWithChanges.reduce((sum, t) => sum + t.filesChanged, 0) / tasksWithChanges.length
-    : 0;
-  const avgPatchSize = tasksWithChanges.length > 0
-    ? tasksWithChanges.reduce((sum, t) => sum + t.linesAdded + t.linesDeleted, 0) / tasksWithChanges.length
-    : 0;
+  const avgFilesChanged =
+    tasksWithChanges.length > 0
+      ? tasksWithChanges.reduce((sum, t) => sum + t.filesChanged, 0) / tasksWithChanges.length
+      : 0;
+  const avgPatchSize =
+    tasksWithChanges.length > 0
+      ? tasksWithChanges.reduce((sum, t) => sum + t.linesAdded + t.linesDeleted, 0) /
+        tasksWithChanges.length
+      : 0;
 
   return {
     successRate: round(successRate),
@@ -129,15 +130,16 @@ export function computeMetrics(tasks: BenchmarkTaskResult[]): BenchmarkMetrics {
     multiRoundRecoveryRate: round(multiRoundRecoveryRate),
     // M4.2: Refined recovery metrics
     recoverableFailureSampleCount: recoverableFailures.length,
-    recoverableFailureRecoveryRate: recoverableFailures.length > 0
-      ? round(recoverableRecoveries / recoverableFailures.length)
-      : -1, // -1 = N/A (no samples)
-    expectedFailedStopRate: expectedFailed.length > 0
-      ? round(expectedFailedStopped / expectedFailed.length)
-      : -1,
-    infrastructureErrorRate: tasks.length > 0
-      ? round(tasks.filter((t) => t.actualStatus === "error").length / tasks.length)
-      : 0,
+    recoverableFailureRecoveryRate:
+      recoverableFailures.length > 0
+        ? round(recoverableRecoveries / recoverableFailures.length)
+        : -1, // -1 = N/A (no samples)
+    expectedFailedStopRate:
+      expectedFailed.length > 0 ? round(expectedFailedStopped / expectedFailed.length) : -1,
+    infrastructureErrorRate:
+      tasks.length > 0
+        ? round(tasks.filter((t) => t.actualStatus === "error").length / tasks.length)
+        : 0,
     failureReasons,
     integrityCriticalCount,
     integrityWarningCount,

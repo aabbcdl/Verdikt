@@ -2,8 +2,8 @@
  * Tests for benchmark metrics and suite parsing.
  */
 
-import { describe, it, expect } from "vitest";
-import { computeTotals, computeMetrics } from "./metrics.js";
+import { describe, expect, it } from "vitest";
+import { computeMetrics, computeTotals } from "./metrics.js";
 import type { BenchmarkTaskResult } from "./types.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -56,18 +56,14 @@ describe("computeTotals", () => {
   });
 
   it("detects unexpected failures", () => {
-    const tasks = [
-      makeTaskResult({ expectedOutcome: "passed", actualStatus: "failed" }),
-    ];
+    const tasks = [makeTaskResult({ expectedOutcome: "passed", actualStatus: "failed" })];
     const totals = computeTotals(tasks);
     expect(totals.unexpectedFailures).toBe(1);
     expect(totals.unexpectedPasses).toBe(0);
   });
 
   it("detects unexpected passes", () => {
-    const tasks = [
-      makeTaskResult({ expectedOutcome: "failed", actualStatus: "passed" }),
-    ];
+    const tasks = [makeTaskResult({ expectedOutcome: "failed", actualStatus: "passed" })];
     const totals = computeTotals(tasks);
     expect(totals.unexpectedPasses).toBe(1);
     expect(totals.unexpectedFailures).toBe(0);
@@ -75,7 +71,11 @@ describe("computeTotals", () => {
 
   it("expected failed that fails = matched, not unexpected", () => {
     const tasks = [
-      makeTaskResult({ expectedOutcome: "failed", actualStatus: "failed", matchedExpectation: true }),
+      makeTaskResult({
+        expectedOutcome: "failed",
+        actualStatus: "failed",
+        matchedExpectation: true,
+      }),
     ];
     const totals = computeTotals(tasks);
     expect(totals.unexpectedFailures).toBe(0);
@@ -106,10 +106,7 @@ describe("computeMetrics", () => {
   });
 
   it("calculates average iterations", () => {
-    const tasks = [
-      makeTaskResult({ iterations: 1 }),
-      makeTaskResult({ iterations: 3 }),
-    ];
+    const tasks = [makeTaskResult({ iterations: 1 }), makeTaskResult({ iterations: 3 })];
     const metrics = computeMetrics(tasks);
     expect(metrics.avgIterations).toBe(2);
   });

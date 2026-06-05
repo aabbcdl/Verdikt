@@ -1,5 +1,14 @@
-import { describe, it, expect } from "vitest";
-import { capitalize, camelCase, kebabCase, truncate, clamp, lerp, roundTo, sum } from "../src/utils.js";
+import { describe, expect, it } from "vitest";
+import {
+  camelCase,
+  capitalize,
+  clamp,
+  kebabCase,
+  lerp,
+  roundTo,
+  sum,
+  truncate,
+} from "../src/utils.js";
 
 describe("string utils", () => {
   it("capitalize", () => expect(capitalize("hello")).toBe("Hello"));
@@ -14,7 +23,7 @@ describe("number utils", () => {
   it("clamp below min", () => expect(clamp(-5, 0, 10)).toBe(0));
   it("clamp above max", () => expect(clamp(15, 0, 10)).toBe(10));
   it("lerp", () => expect(lerp(0, 10, 0.5)).toBe(5));
-  it("roundTo", () => expect(roundTo(3.14159, 2)).toBe(3.14));
+  it("roundTo", () => expect(roundTo(Math.PI, 2)).toBe(3.14));
   it("sum", () => expect(sum([1, 2, 3, 4])).toBe(10));
   it("sum empty", () => expect(sum([])).toBe(0));
 });

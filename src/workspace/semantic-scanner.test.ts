@@ -2,7 +2,7 @@
  * Tests for semantic risk scanner.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { scanPatchRisk } from "./semantic-scanner.js";
 
 describe("scanPatchRisk", () => {
@@ -108,9 +108,9 @@ describe("scanPatchRisk", () => {
     const patch = [
       "+++ b/src/mixed.ts",
       "@@ -1,4 +1,6 @@",
-      "+try { x(); } catch (e) {}",               // low
-      "+const seen = new Set<string>();",          // medium
-      "+if (process.env.NODE_ENV === 'test') {}",  // high
+      "+try { x(); } catch (e) {}", // low
+      "+const seen = new Set<string>();", // medium
+      "+if (process.env.NODE_ENV === 'test') {}", // high
     ].join("\n");
 
     const result = scanPatchRisk(patch, ["src/mixed.ts"]);

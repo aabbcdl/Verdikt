@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { square, squareRoot, hypotenuse } from "../src/math.js";
+import { describe, expect, it } from "vitest";
+import { hypotenuse, square, squareRoot } from "../src/math.js";
 
 describe("square", () => {
   it("squares positive numbers", () => expect(square(3)).toBe(9));

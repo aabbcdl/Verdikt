@@ -7,20 +7,20 @@
  */
 
 import { readFileSync } from "node:fs";
-import { resolve, join, dirname } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { runSupervisorLoop } from "../loop/supervisor.js";
-import type { TaskSpec } from "../types.js";
 import { createRunId } from "../trace/recorder.js";
-import type {
-  BenchmarkSuite,
-  BenchmarkTaskSpec,
-  BenchmarkTaskResult,
-  BenchmarkResult,
-  BenchmarkDefaults,
-} from "./types.js";
-import { computeTotals, computeMetrics } from "./metrics.js";
+import type { TaskSpec } from "../types.js";
+import { computeMetrics, computeTotals } from "./metrics.js";
 import { writeBenchmarkJson, writeBenchmarkMd } from "./report.js";
+import type {
+  BenchmarkDefaults,
+  BenchmarkResult,
+  BenchmarkSuite,
+  BenchmarkTaskResult,
+  BenchmarkTaskSpec,
+} from "./types.js";
 
 /**
  * Parse a benchmark suite file (JSON).
@@ -31,7 +31,8 @@ export function loadSuite(suitePath: string): BenchmarkSuite {
 
   // Validate
   if (!suite.id) throw new Error("Suite must have an 'id' field");
-  if (!suite.tasks || suite.tasks.length === 0) throw new Error("Suite must have at least one task");
+  if (!suite.tasks || suite.tasks.length === 0)
+    throw new Error("Suite must have at least one task");
 
   return suite;
 }
@@ -66,7 +67,9 @@ export async function runBenchmark(
 
   for (let i = 0; i < suite.tasks.length; i++) {
     const taskSpec = suite.tasks[i];
-    log(`\n── Task ${i + 1}/${suite.tasks.length}: ${taskSpec.id} (${taskSpec.category ?? "uncategorized"}) ──`);
+    log(
+      `\n── Task ${i + 1}/${suite.tasks.length}: ${taskSpec.id} (${taskSpec.category ?? "uncategorized"}) ──`,
+    );
 
     if (options.dryRun) {
       log(`  [DRY RUN] Would run: ${taskSpec.taskFile}`);
@@ -78,7 +81,9 @@ export async function runBenchmark(
       const result = await runSingleTask(taskSpec, defaults, tasksDir);
       taskResults.push(result);
 
-      log(`  ▸ Result: ${result.actualStatus} | ${result.iterations} iter | $${result.costUsd.toFixed(2)} | ${result.stopReason ?? "—"} | match=${result.matchedExpectation}`);
+      log(
+        `  ▸ Result: ${result.actualStatus} | ${result.iterations} iter | $${result.costUsd.toFixed(2)} | ${result.stopReason ?? "—"} | match=${result.matchedExpectation}`,
+      );
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       log(`  ▸ ERROR: ${errorMsg}`);
@@ -216,7 +221,7 @@ function makeErrorResult(taskSpec: BenchmarkTaskSpec, error: string): BenchmarkT
 }
 
 async function copyDir(src: string, dest: string): Promise<void> {
-  const { readdir, stat, mkdir: mk } = await import("node:fs/promises");
+  const { readdir, mkdir: mk } = await import("node:fs/promises");
   const { join: j } = await import("node:path");
   await mk(dest, { recursive: true });
   const entries = await readdir(src, { withFileTypes: true });

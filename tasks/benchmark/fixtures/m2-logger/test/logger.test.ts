@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { createLogger, type LogLevel } from "../src/logger.js";
+import { describe, expect, it } from "vitest";
+import { type LogLevel, createLogger } from "../src/logger.js";
 
 function captureOutput(): { lines: string[]; output: (line: string) => void } {
   const lines: string[] = [];

@@ -25,7 +25,7 @@ export interface Logger {
 
 export function createLogger(
   minLevel: LogLevel = "info",
-  prefix: string = "",
+  prefix = "",
   output: (line: string) => void = console.log,
 ): Logger {
   const shouldLog = (level: LogLevel): boolean => {

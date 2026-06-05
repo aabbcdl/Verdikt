@@ -8,13 +8,27 @@
 export class KVStore {
   private data = new Map<string, string>();
 
-  get(key: string): string | undefined { return this.data.get(key); }
-  set(key: string, value: string): void { this.data.set(key, value); }
-  delete(key: string): boolean { return this.data.delete(key); }
-  has(key: string): boolean { return this.data.has(key); }
-  keys(): string[] { return [...this.data.keys()]; }
-  clear(): void { this.data.clear(); }
-  size(): number { return this.data.size; }
+  get(key: string): string | undefined {
+    return this.data.get(key);
+  }
+  set(key: string, value: string): void {
+    this.data.set(key, value);
+  }
+  delete(key: string): boolean {
+    return this.data.delete(key);
+  }
+  has(key: string): boolean {
+    return this.data.has(key);
+  }
+  keys(): string[] {
+    return [...this.data.keys()];
+  }
+  clear(): void {
+    this.data.clear();
+  }
+  size(): number {
+    return this.data.size;
+  }
 
   // TODO: implement batchGet, batchSet, batchDelete
 }

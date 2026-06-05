@@ -12,8 +12,8 @@
  *     state.json         — run state for resume (task, instruction, iteration)
  */
 
-import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { IterationRecord, RunResult, StopReason, TaskSpec } from "../types.js";
 
@@ -40,11 +40,8 @@ export async function initRun(stateDir: string, runId: string): Promise<string> 
 /**
  * Append one iteration record to iterations.jsonl.
  */
-export async function recordIteration(
-  runDir: string,
-  record: IterationRecord,
-): Promise<void> {
-  const line = JSON.stringify(record) + "\n";
+export async function recordIteration(runDir: string, record: IterationRecord): Promise<void> {
+  const line = `${JSON.stringify(record)}\n`;
   const filePath = join(runDir, "iterations.jsonl");
   await writeFile(filePath, line, { flag: "a" });
 }
@@ -54,10 +51,7 @@ export async function recordIteration(
  *
  * M3: Produces a rich summary.json consumable by UI and benchmark.
  */
-export async function writeSummary(
-  runDir: string,
-  result: RunResult,
-): Promise<void> {
+export async function writeSummary(runDir: string, result: RunResult): Promise<void> {
   const summary = {
     // Run metadata
     runId: result.runId ?? null,
@@ -167,6 +161,7 @@ export async function loadRunState(runDir: string): Promise<RunState | null> {
     const raw = await readFile(statePath, "utf-8");
     return JSON.parse(raw) as RunState;
   } catch {
+    // State file missing or malformed — not resumable
     return null;
   }
 }

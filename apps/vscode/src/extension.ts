@@ -1,6 +1,6 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import * as vscode from "vscode";
-import * as path from "path";
-import * as fs from "fs";
 
 /**
  * Verdikt VS Code Extension
@@ -22,7 +22,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("verdikt.refresh", () => {
       runsProvider.refresh();
       benchmarksProvider.refresh();
-    })
+    }),
   );
 
   context.subscriptions.push(
@@ -30,7 +30,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (item.runId) {
         openRunPanel(context, item.runId);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
@@ -40,7 +40,7 @@ export function activate(context: vscode.ExtensionContext) {
         terminal.sendText(`verdikt apply ${item.runId}`);
         terminal.show();
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
@@ -49,7 +49,7 @@ export function activate(context: vscode.ExtensionContext) {
         const confirm = await vscode.window.showWarningMessage(
           `Discard run ${item.runId}?`,
           "Discard",
-          "Cancel"
+          "Cancel",
         );
         if (confirm === "Discard") {
           const terminal = vscode.window.createTerminal("Verdikt");
@@ -57,7 +57,7 @@ export function activate(context: vscode.ExtensionContext) {
           terminal.show();
         }
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
@@ -70,12 +70,12 @@ export function activate(context: vscode.ExtensionContext) {
         title: "Select Task File",
       });
 
-      if (taskFile && taskFile[0]) {
+      if (taskFile?.[0]) {
         const terminal = vscode.window.createTerminal("Verdikt");
         terminal.sendText(`verdikt run --task "${taskFile[0].fsPath}"`);
         terminal.show();
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
@@ -84,7 +84,7 @@ export function activate(context: vscode.ExtensionContext) {
       terminal.sendText("verdikt dashboard");
       terminal.show();
       vscode.env.openExternal(vscode.Uri.parse("http://localhost:3848"));
-    })
+    }),
   );
 }
 
@@ -106,7 +106,7 @@ interface RunSummary {
 class RunTreeItem extends vscode.TreeItem {
   constructor(
     public readonly runId: string,
-    public readonly summary: RunSummary
+    public readonly summary: RunSummary,
   ) {
     super(runId, vscode.TreeItemCollapsibleState.None);
 
@@ -180,7 +180,7 @@ interface BenchmarkSummary {
 class BenchmarkTreeItem extends vscode.TreeItem {
   constructor(
     public readonly benchId: string,
-    public readonly summary: BenchmarkSummary
+    public readonly summary: BenchmarkSummary,
   ) {
     super(benchId, vscode.TreeItemCollapsibleState.None);
 
@@ -231,7 +231,7 @@ class BenchmarksTreeProvider implements vscode.TreeDataProvider<BenchmarkTreeIte
   }
 }
 
-function openRunPanel(context: vscode.ExtensionContext, runId: string): void {
+function openRunPanel(_context: vscode.ExtensionContext, runId: string): void {
   const stateDir = getStateDir();
   const summaryPath = path.join(stateDir, runId, "summary.json");
 
@@ -244,7 +244,7 @@ function openRunPanel(context: vscode.ExtensionContext, runId: string): void {
     "verdiktRun",
     `Verdikt: ${runId}`,
     vscode.ViewColumn.One,
-    { enableScripts: true }
+    { enableScripts: true },
   );
 
   const raw = fs.readFileSync(summaryPath, "utf-8");
@@ -269,7 +269,7 @@ function getRunHtml(runId: string, summary: any): string {
       <td>${iter.verifier?.done ? "✅" : "❌"} ${iter.verifier?.problems?.length ?? 0} problems</td>
       <td>${iter.patch?.filesChanged?.length ?? 0} files</td>
       <td>$${(iter.costUsd ?? 0).toFixed(4)}</td>
-    </tr>`
+    </tr>`,
     )
     .join("");
 

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { KVStore, createStore } from "../src/store.js";
 
 describe("KVStore basic operations", () => {
@@ -34,7 +34,11 @@ describe("KVStore basic operations", () => {
 describe("KVStore batch operations", () => {
   it("batchSet sets multiple keys", () => {
     const s = createStore();
-    s.batchSet([["a", "1"], ["b", "2"], ["c", "3"]]);
+    s.batchSet([
+      ["a", "1"],
+      ["b", "2"],
+      ["c", "3"],
+    ]);
     expect(s.get("a")).toBe("1");
     expect(s.get("b")).toBe("2");
     expect(s.get("c")).toBe("3");
@@ -45,7 +49,10 @@ describe("KVStore batch operations", () => {
     s.set("a", "1");
     s.set("b", "2");
     const result = s.batchGet(["a", "b", "c"]);
-    expect(result).toEqual([["a", "1"], ["b", "2"]]);
+    expect(result).toEqual([
+      ["a", "1"],
+      ["b", "2"],
+    ]);
   });
 
   it("batchDelete removes multiple keys", () => {

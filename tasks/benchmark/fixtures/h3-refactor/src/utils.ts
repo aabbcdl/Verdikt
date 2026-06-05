@@ -26,7 +26,7 @@ export function kebabCase(s: string): string {
 
 export function truncate(s: string, maxLen: number): string {
   if (s.length <= maxLen) return s;
-  return s.slice(0, maxLen - 3) + "...";
+  return `${s.slice(0, maxLen - 3)}...`;
 }
 
 // Number utilities

@@ -1,8 +1,19 @@
 {
   "id": "m4-h1-rerun",
   "name": "M4 H1 Staged Judge Re-run",
-  "defaults": { "maxIterations": 4, "budgetUsd": 8, "worktree": true, "integrity": true, "autoApply": false },
+  "defaults": {
+    "maxIterations": 4,
+    "budgetUsd": 8,
+    "worktree": true,
+    "integrity": true,
+    "autoApply": false
+  },
   "tasks": [
-    { "id": "h1-staged", "taskFile": "tasks/benchmark/h1-staged.json", "category": "medium", "expectedOutcome": "passed" }
+    {
+      "id": "h1-staged",
+      "taskFile": "tasks/benchmark/h1-staged.json",
+      "category": "medium",
+      "expectedOutcome": "passed"
+    }
   ]
 }

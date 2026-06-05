@@ -9,11 +9,11 @@
  */
 
 import { type ChildProcess, spawn } from "node:child_process";
-import { writeFileSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import type { DriverInput, DriverOutput } from "../types.js";
+import { join } from "node:path";
 import { getConfig } from "../config.js";
+import type { DriverInput, DriverOutput } from "../types.js";
 
 /**
  * Options for streaming output.
@@ -35,13 +35,19 @@ export interface StreamCallbacks {
  * When streamCallbacks are provided, uses --output-format stream-json
  * for real-time progress feedback.
  */
-export async function callClaude(input: DriverInput, streamCallbacks?: StreamCallbacks): Promise<DriverOutput> {
+export async function callClaude(
+  input: DriverInput,
+  streamCallbacks?: StreamCallbacks,
+): Promise<DriverOutput> {
   const config = getConfig();
   const timeoutMs = input.timeoutMs ?? config.defaultTimeoutMs;
   const t0 = Date.now();
 
   // Write system prompt to a temp file to avoid shell escaping issues
-  const tmpFile = join(tmpdir(), `verdikt-sys-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`);
+  const tmpFile = join(
+    tmpdir(),
+    `verdikt-sys-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`,
+  );
   writeFileSync(tmpFile, input.systemPrompt, "utf-8");
 
   const useStreaming = !!streamCallbacks?.onChunk;
@@ -139,13 +145,19 @@ export async function callClaude(input: DriverInput, streamCallbacks?: StreamCal
       if (idleTimer) clearTimeout(idleTimer);
 
       // Cleanup temp file
-      try { unlinkSync(tmpFile); } catch { /* already gone */ }
+      try {
+        unlinkSync(tmpFile);
+      } catch {
+        /* already gone */
+      }
 
       const durationMs = Date.now() - t0;
 
       if (timedOut) {
         resolve({
-          text: stdout || `[TIMEOUT after ${durationMs}ms] Claude Code produced no output for ${timeoutMs}ms`,
+          text:
+            stdout ||
+            `[TIMEOUT after ${durationMs}ms] Claude Code produced no output for ${timeoutMs}ms`,
           timedOut: true,
           durationMs,
         });
@@ -170,7 +182,11 @@ export async function callClaude(input: DriverInput, streamCallbacks?: StreamCal
 
     child.on("error", (err) => {
       if (idleTimer) clearTimeout(idleTimer);
-      try { unlinkSync(tmpFile); } catch { /* ignore */ }
+      try {
+        unlinkSync(tmpFile);
+      } catch {
+        /* ignore */
+      }
       resolve({
         text: `[DRIVER ERROR] ${err.message}`,
         timedOut: false,
@@ -196,8 +212,10 @@ function buildCommandString(
   const parts = [
     "claude",
     "--print",
-    "--output-format", useStreaming ? "stream-json" : "json",
-    "--model", config.model,
+    "--output-format",
+    useStreaming ? "stream-json" : "json",
+    "--model",
+    config.model,
   ];
 
   // System prompt from file — use @ prefix for file path

@@ -10,7 +10,14 @@
 
 import { type ExecException, exec, spawn } from "node:child_process";
 import { resolve } from "node:path";
-import type { AcceptanceCriteria, CustomJudgeResult, JudgeCheck, JudgeResult, JudgeStep, JudgeStepResult } from "../types.js";
+import type {
+  AcceptanceCriteria,
+  CustomJudgeResult,
+  JudgeCheck,
+  JudgeResult,
+  JudgeStep,
+  JudgeStepResult,
+} from "../types.js";
 
 /**
  * Run all acceptance criteria as judge checks.
@@ -34,7 +41,15 @@ export async function runJudges(acceptance: AcceptanceCriteria, cwd: string): Pr
   if (!acceptance.testCommand) {
     return {
       passed: false,
-      checks: [{ name: "test", passed: false, exitCode: 1, output: "No testCommand or steps defined in acceptance criteria", durationMs: 0 }],
+      checks: [
+        {
+          name: "test",
+          passed: false,
+          exitCode: 1,
+          output: "No testCommand or steps defined in acceptance criteria",
+          durationMs: 0,
+        },
+      ],
     };
   }
 
@@ -78,9 +93,7 @@ async function runStructuredSteps(steps: JudgeStep[], cwd: string): Promise<Judg
   }
 
   // Overall passed: all required steps must pass
-  const passed = stepResults
-    .filter((s) => s.required)
-    .every((s) => s.passed);
+  const passed = stepResults.filter((s) => s.required).every((s) => s.passed);
 
   return { passed, checks, stepResults };
 }
@@ -111,8 +124,12 @@ async function runStep(step: JudgeStep, defaultCwd: string): Promise<JudgeStepRe
       child.kill("SIGTERM");
     }, 120_000);
 
-    child.stdout?.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
-    child.stderr?.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
 
     child.on("close", (code) => {
       clearTimeout(timer);
@@ -205,14 +222,14 @@ async function runCustomJudge(
     });
 
     let stdout = "";
-    let stderr = "";
+    let _stderr = "";
 
     child.stdout.on("data", (chunk: Buffer) => {
       stdout += chunk.toString();
     });
 
     child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
+      _stderr += chunk.toString();
     });
 
     child.on("close", (code) => {
@@ -257,13 +274,15 @@ async function runCustomJudge(
     child.on("error", (err) => {
       resolveResult({
         passed: false,
-        checks: [{
-          name: "custom",
-          passed: false,
-          output: `Failed to run custom judge: ${err.message}`,
-          exitCode: 1,
-          durationMs: 0,
-        }],
+        checks: [
+          {
+            name: "custom",
+            passed: false,
+            output: `Failed to run custom judge: ${err.message}`,
+            exitCode: 1,
+            durationMs: 0,
+          },
+        ],
       });
     });
   });

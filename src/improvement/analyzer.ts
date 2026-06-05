@@ -7,10 +7,10 @@
  * Output: Actionable insights for improving the executor's system prompt.
  */
 
-import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { readFile } from "node:fs/promises";
 import { readdir } from "node:fs/promises";
+import { join } from "node:path";
 
 export interface FeedbackPattern {
   /** The feedback pattern (e.g., "type error", "missing import") */
@@ -69,7 +69,11 @@ export async function analyzeRuns(stateDir: string): Promise<ImprovementReport> 
   const strategies = extractRecoveryStrategies(runs);
 
   // Generate recommendations
-  const recommendations = generateRecommendations(patterns, strategies, passedRuns.length / runs.length);
+  const recommendations = generateRecommendations(
+    patterns,
+    strategies,
+    passedRuns.length / runs.length,
+  );
 
   return {
     totalRuns: runs.length,
@@ -101,6 +105,7 @@ async function loadAllRuns(stateDir: string): Promise<RunData[]> {
   try {
     entries = await readdir(stateDir);
   } catch {
+    // State directory doesn't exist — no runs to analyze
     return [];
   }
 
@@ -112,13 +117,15 @@ async function loadAllRuns(stateDir: string): Promise<RunData[]> {
       const raw = await readFile(summaryPath, "utf-8");
       const summary = JSON.parse(raw);
 
-      const iterations = (summary.iterations ?? []).map((iter: any, i: number) => ({
-        index: i,
-        judgePassed: iter.judge?.passed ?? false,
-        verifierProblems: iter.verifier?.problems ?? [],
-        verifierNextInstruction: iter.verifier?.nextInstruction ?? null,
-        filesChanged: iter.patch?.filesChanged ?? [],
-      }));
+      const iterations = (summary.iterations ?? []).map(
+        (iter: Record<string, Record<string, unknown>>, i: number) => ({
+          index: i,
+          judgePassed: iter.judge?.passed ?? false,
+          verifierProblems: iter.verifier?.problems ?? [],
+          verifierNextInstruction: iter.verifier?.nextInstruction ?? null,
+          filesChanged: iter.patch?.filesChanged ?? [],
+        }),
+      );
 
       runs.push({
         runId: entry,
@@ -249,15 +256,19 @@ function generateRecommendations(
   const problematicPatterns = patterns.filter((p) => p.count >= 2 && p.recoveryRate < 0.5);
   for (const p of problematicPatterns.slice(0, 3)) {
     recommendations.push(
-      `⚠️ "${p.pattern}" appears ${p.count} times with only ${(p.recoveryRate * 100).toFixed(0)}% recovery. Consider adding specific guidance for this failure mode.`
+      `⚠️ "${p.pattern}" appears ${p.count} times with only ${(p.recoveryRate * 100).toFixed(0)}% recovery. Consider adding specific guidance for this failure mode.`,
     );
   }
 
   // Overall pass rate feedback
   if (passRate < 0.3) {
-    recommendations.push("🔴 Low pass rate (<30%). Tasks may be too complex or acceptance criteria too strict.");
+    recommendations.push(
+      "🔴 Low pass rate (<30%). Tasks may be too complex or acceptance criteria too strict.",
+    );
   } else if (passRate < 0.6) {
-    recommendations.push("🟡 Moderate pass rate. Consider improving the executor's system prompt with common fix patterns.");
+    recommendations.push(
+      "🟡 Moderate pass rate. Consider improving the executor's system prompt with common fix patterns.",
+    );
   } else {
     recommendations.push("🟢 Good pass rate (>60%). Focus on optimizing cost and iteration count.");
   }
@@ -271,7 +282,9 @@ function generateRecommendations(
     }
     const topSolution = Array.from(commonSolutions.entries()).sort((a, b) => b[1] - a[1])[0];
     if (topSolution) {
-      recommendations.push(`💡 Most common recovery strategy: ${topSolution[0]} (${topSolution[1]} times). This pattern could be emphasized in the executor prompt.`);
+      recommendations.push(
+        `💡 Most common recovery strategy: ${topSolution[0]} (${topSolution[1]} times). This pattern could be emphasized in the executor prompt.`,
+      );
     }
   }
 

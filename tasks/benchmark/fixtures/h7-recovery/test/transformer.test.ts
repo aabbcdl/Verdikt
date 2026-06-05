@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { slugify, truncate, capitalizeWords } from "../src/transformer.js";
+import { describe, expect, it } from "vitest";
+import { capitalizeWords, slugify, truncate } from "../src/transformer.js";
 
 describe("slugify", () => {
   it("converts to lowercase hyphenated", () => expect(slugify("Hello World")).toBe("hello-world"));

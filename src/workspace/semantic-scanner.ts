@@ -47,14 +47,16 @@ const RULES: ScanRule[] = [
     name: "global-mutable-state",
     severity: "medium",
     pattern: /\b(const|let)\s+\w+\s*=\s*new\s+(Set|Map|WeakMap|WeakSet)\b/,
-    description: "Global mutable state (Set/Map) detected in source — may cause call-order dependence",
+    description:
+      "Global mutable state (Set/Map) detected in source — may cause call-order dependence",
     fileFilter: /^src\//,
   },
   {
     name: "global-counter",
     severity: "medium",
     pattern: /\b(let|var)\s+\w*(count|idx|index|seen|called|invocations|callCount)\w*\s*[=;]/i,
-    description: "Global counter/state variable detected — may indicate call-order-dependent behavior",
+    description:
+      "Global counter/state variable detected — may indicate call-order-dependent behavior",
     fileFilter: /^src\//,
   },
 
@@ -63,7 +65,8 @@ const RULES: ScanRule[] = [
     name: "test-env-branch",
     severity: "high",
     pattern: /process\.env\.(NODE_ENV|VITEST|JEST|TEST)\s*[!=]==?\s*['"]test['"]/,
-    description: "Test environment branch detected — code behaves differently in test vs production",
+    description:
+      "Test environment branch detected — code behaves differently in test vs production",
   },
   {
     name: "test-file-detection",
@@ -91,7 +94,8 @@ const RULES: ScanRule[] = [
     name: "hardcoded-literal-guard",
     severity: "medium",
     pattern: /if\s*\([^)]*===?\s*['"][A-Z][a-z]+ [A-Z][a-z]+['"]/,
-    description: "Hardcoded test-like string literal in conditional — may be targeting specific test input",
+    description:
+      "Hardcoded test-like string literal in conditional — may be targeting specific test input",
     fileFilter: /^src\//,
   },
   {
@@ -137,7 +141,7 @@ const RULES: ScanRule[] = [
  */
 export function scanPatchRisk(
   patchContent: string,
-  changedSourceFiles: string[],
+  _changedSourceFiles: string[],
 ): SemanticRiskResult {
   const findings: SemanticRiskFinding[] = [];
 
@@ -206,7 +210,7 @@ function parsePatch(patch: string): PatchSection[] {
     // Detect hunk header: @@ -1,3 +1,4 @@
     if (line.startsWith("@@")) {
       const match = line.match(/\+(\d+)/);
-      if (match) lineNum = parseInt(match[1], 10) - 1;
+      if (match) lineNum = Number.parseInt(match[1], 10) - 1;
       continue;
     }
 

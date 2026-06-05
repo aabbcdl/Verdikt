@@ -10,7 +10,7 @@
  *        stop condition, and verifier feedback propagation.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DriverOutput, JudgeResult, TaskSpec } from "../types.js";
 import { runSupervisorLoop } from "./supervisor.js";
 
@@ -26,12 +26,28 @@ const TASK: TaskSpec = {
 
 const JUDGE_FAIL: JudgeResult = {
   passed: false,
-  checks: [{ name: "test", passed: false, output: "FAIL: sum(2,3) expected 5 got -1", exitCode: 1, durationMs: 100 }],
+  checks: [
+    {
+      name: "test",
+      passed: false,
+      output: "FAIL: sum(2,3) expected 5 got -1",
+      exitCode: 1,
+      durationMs: 100,
+    },
+  ],
 };
 
 const JUDGE_PARTIAL: JudgeResult = {
   passed: false,
-  checks: [{ name: "test", passed: false, output: "FAIL: sum(0,5) expected 5 got 0", exitCode: 1, durationMs: 100 }],
+  checks: [
+    {
+      name: "test",
+      passed: false,
+      output: "FAIL: sum(0,5) expected 5 got 0",
+      exitCode: 1,
+      durationMs: 100,
+    },
+  ],
 };
 
 const JUDGE_PASS: JudgeResult = {
@@ -123,7 +139,7 @@ describe("SupervisorLoop multi-round convergence", () => {
             text: "Fixed the subtraction bug in sum function. Changed a-b to a+b.",
             timedOut: false,
             durationMs: 5000,
-            costUsd: 0.50,
+            costUsd: 0.5,
           };
         }
         if (executorCallCount === 2) {
@@ -131,14 +147,14 @@ describe("SupervisorLoop multi-round convergence", () => {
             text: "Fixed the zero handling edge case. sum(0,5) now returns 5.",
             timedOut: false,
             durationMs: 4000,
-            costUsd: 0.40,
+            costUsd: 0.4,
           };
         }
         return {
           text: "All fixes applied. Tests should pass now.",
           timedOut: false,
           durationMs: 3000,
-          costUsd: 0.30,
+          costUsd: 0.3,
         };
       }
 
@@ -151,19 +167,23 @@ describe("SupervisorLoop multi-round convergence", () => {
           text: JSON.stringify({
             done: false,
             problems: ["sum(2,3) still returns -1 instead of 5"],
-            nextInstruction: "The sum function uses subtraction (a-b). Change it to addition (a+b) in src/sum.ts.",
+            nextInstruction:
+              "The sum function uses subtraction (a-b). Change it to addition (a+b) in src/sum.ts.",
           }),
           timedOut: false,
           durationMs: 3000,
-          costUsd: 0.20,
+          costUsd: 0.2,
         };
       }
       if (verifierCallCount === 2) {
         return {
           text: JSON.stringify({
             done: false,
-            problems: ["sum(0,5) returns 0 instead of 5 — the zero input case is not handled correctly"],
-            nextInstruction: "The sum function now works for non-zero inputs but fails when first argument is 0. Check the implementation for edge cases with zero.",
+            problems: [
+              "sum(0,5) returns 0 instead of 5 — the zero input case is not handled correctly",
+            ],
+            nextInstruction:
+              "The sum function now works for non-zero inputs but fails when first argument is 0. Check the implementation for edge cases with zero.",
           }),
           timedOut: false,
           durationMs: 2500,
@@ -238,10 +258,10 @@ describe("SupervisorLoop multi-round convergence", () => {
     expect(result.iterations[2].verifierVerdict.problems).toHaveLength(0);
 
     // 7. Cost accumulation: executor + verifier costs per round
-    expect(result.iterations[0].costUsd).toBeCloseTo(0.70); // 0.50 + 0.20
+    expect(result.iterations[0].costUsd).toBeCloseTo(0.7); // 0.50 + 0.20
     expect(result.iterations[1].costUsd).toBeCloseTo(0.58); // 0.40 + 0.18
     expect(result.iterations[2].costUsd).toBeCloseTo(0.45); // 0.30 + 0.15
-    expect(result.totalCostUsd).toBeCloseTo(1.73);          // sum of all
+    expect(result.totalCostUsd).toBeCloseTo(1.73); // sum of all
 
     // 8. Total duration is positive
     expect(result.totalDurationMs).toBeGreaterThan(0);
@@ -269,7 +289,7 @@ describe("SupervisorLoop multi-round convergence", () => {
             }),
         timedOut: false,
         durationMs: 2000,
-        costUsd: 0.10,
+        costUsd: 0.1,
       };
     });
 
@@ -278,13 +298,15 @@ describe("SupervisorLoop multi-round convergence", () => {
       judgeCallCount++;
       return {
         passed: false,
-        checks: [{
-          name: "test",
-          passed: false,
-          output: `FAIL: iteration ${judgeCallCount} — different error each round`,
-          exitCode: 1,
-          durationMs: 100,
-        }],
+        checks: [
+          {
+            name: "test",
+            passed: false,
+            output: `FAIL: iteration ${judgeCallCount} — different error each round`,
+            exitCode: 1,
+            durationMs: 100,
+          },
+        ],
       };
     });
 
@@ -301,15 +323,18 @@ describe("SupervisorLoop multi-round convergence", () => {
     mockCallClaude.mockImplementation(async (input) => {
       const isExecutor = input.systemPrompt.includes("EXECUTOR");
       if (isExecutor) {
-        return { text: "Fixed something", timedOut: false, durationMs: 3000, costUsd: 0.30 };
+        return { text: "Fixed something", timedOut: false, durationMs: 3000, costUsd: 0.3 };
       }
       // Return unparseable text — should trigger fallback
-      return { text: "I think the task is done but I'm not sure.", timedOut: false, durationMs: 2000, costUsd: 0.15 };
+      return {
+        text: "I think the task is done but I'm not sure.",
+        timedOut: false,
+        durationMs: 2000,
+        costUsd: 0.15,
+      };
     });
 
-    mockRunJudges
-      .mockResolvedValueOnce(JUDGE_FAIL)
-      .mockResolvedValueOnce(JUDGE_PASS);
+    mockRunJudges.mockResolvedValueOnce(JUDGE_FAIL).mockResolvedValueOnce(JUDGE_PASS);
 
     const result = await runSupervisorLoop(TASK, { skipWorktree: true, skipIntegrity: true });
 

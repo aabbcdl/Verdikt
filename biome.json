@@ -19,6 +19,16 @@
     "lineWidth": 100
   },
   "files": {
-    "ignore": ["node_modules", "dist", ".verdikt"]
+    "ignore": [
+      "node_modules",
+      "dist",
+      ".verdikt",
+      "apps/vscode",
+      "tasks/benchmark/fixtures",
+      "examples/demo-dogfood",
+      "examples/demo-cascade",
+      "examples/demo-cascade-deep",
+      "examples/demo-multi-round"
+    ]
   }
 }

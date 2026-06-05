@@ -13,9 +13,9 @@
  * - Modified test scripts in package.json
  */
 
+import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
-import { createHash } from "node:crypto";
 import type { IntegrityPolicy } from "../types.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -65,9 +65,14 @@ export async function captureTestBaseline(repoPath: string): Promise<TestBaselin
 
   // Hash test config files
   const configFiles = [
-    "vitest.config.ts", "vitest.config.js", "vitest.config.mjs",
-    "jest.config.ts", "jest.config.js",
-    ".babelrc", "babel.config.js", "tsconfig.json",
+    "vitest.config.ts",
+    "vitest.config.js",
+    "vitest.config.mjs",
+    "jest.config.ts",
+    "jest.config.js",
+    ".babelrc",
+    "babel.config.js",
+    "tsconfig.json",
   ];
   for (const file of configFiles) {
     try {
@@ -252,12 +257,20 @@ async function scanForCheating(
     { pattern: /\.toBe\(/g, replacement: /\.toBeTruthy\(/, name: "toBe→toBeTruthy" },
     { pattern: /\.toBe\(/g, replacement: /\.toBeDefined\(/, name: "toBe→toBeDefined" },
     { pattern: /\.toThrow\(/g, replacement: /\.toBeDefined\(/, name: "toThrow→toBeDefined" },
-    { pattern: /\.toBeGreaterThan\(/g, replacement: /\.toBeDefined\(/, name: "toBeGreaterThan→toBeDefined" },
+    {
+      pattern: /\.toBeGreaterThan\(/g,
+      replacement: /\.toBeDefined\(/,
+      name: "toBeGreaterThan→toBeDefined",
+    },
   ];
-  for (const { pattern, name } of weakenPatterns) {
+  for (const { pattern: _pattern, name: _name } of weakenPatterns) {
     // This is a simplified check — in production you'd want AST analysis
     // For now, just flag if we see these suspicious patterns
-    if (content.match(/\.toBeDefined\(\)/) && !content.match(/\.toBe\(/) && !content.match(/\.toEqual\(/)) {
+    if (
+      content.match(/\.toBeDefined\(\)/) &&
+      !content.match(/\.toBe\(/) &&
+      !content.match(/\.toEqual\(/)
+    ) {
       // Only flag if toBe/toEqual disappeared and only toDefined remains
       // This is intentionally conservative — real AST analysis would be more precise
     }
@@ -321,11 +334,17 @@ async function findTestFiles(repoPath: string): Promise<string[]> {
   const { spawn } = await import("node:child_process");
   return new Promise<string[]>((resolve) => {
     let stdout = "";
-    const child = spawn("git", ["ls-files", "*.test.ts", "*.test.js", "*.test.tsx", "*.test.jsx", "*.spec.ts", "*.spec.js"], {
-      cwd: repoPath,
-      stdio: ["ignore", "pipe", "pipe"],
+    const child = spawn(
+      "git",
+      ["ls-files", "*.test.ts", "*.test.js", "*.test.tsx", "*.test.jsx", "*.spec.ts", "*.spec.js"],
+      {
+        cwd: repoPath,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
     });
-    child.stdout?.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
     child.on("close", () => resolve(stdout.split("\n").filter(Boolean)));
     child.on("error", () => resolve([]));
   });

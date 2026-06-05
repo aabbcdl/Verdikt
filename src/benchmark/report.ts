@@ -11,10 +11,7 @@ import type { BenchmarkResult, BenchmarkTaskResult } from "./types.js";
 /**
  * Write benchmark.json (machine-readable).
  */
-export async function writeBenchmarkJson(
-  runDir: string,
-  result: BenchmarkResult,
-): Promise<string> {
+export async function writeBenchmarkJson(runDir: string, result: BenchmarkResult): Promise<string> {
   const path = join(runDir, "benchmark.json");
   await writeFile(path, JSON.stringify(result, null, 2));
   return path;
@@ -23,10 +20,7 @@ export async function writeBenchmarkJson(
 /**
  * Write benchmark.md (human-readable).
  */
-export async function writeBenchmarkMd(
-  runDir: string,
-  result: BenchmarkResult,
-): Promise<string> {
+export async function writeBenchmarkMd(runDir: string, result: BenchmarkResult): Promise<string> {
   const path = join(runDir, "benchmark.md");
   const md = renderMarkdown(result);
   await writeFile(path, md);
@@ -47,8 +41,8 @@ function renderMarkdown(result: BenchmarkResult): string {
   // Summary metrics
   lines.push("## Summary");
   lines.push("");
-  lines.push(`| Metric | Value |`);
-  lines.push(`|--------|------:|`);
+  lines.push("| Metric | Value |");
+  lines.push("|--------|------:|");
   lines.push(`| Tasks | ${totals.tasks} |`);
   lines.push(`| Passed | ${totals.passed} |`);
   lines.push(`| Failed | ${totals.failed} |`);
@@ -59,7 +53,9 @@ function renderMarkdown(result: BenchmarkResult): string {
   lines.push(`| Multi-Round Recovery Rate | ${pct(metrics.multiRoundRecoveryRate)} |`);
   lines.push(`| Recoverable Failure Samples | ${metrics.recoverableFailureSampleCount} |`);
   if (metrics.recoverableFailureSampleCount > 0) {
-    lines.push(`| Recoverable Failure Recovery Rate | ${pct(metrics.recoverableFailureRecoveryRate)} |`);
+    lines.push(
+      `| Recoverable Failure Recovery Rate | ${pct(metrics.recoverableFailureRecoveryRate)} |`,
+    );
   }
   if (metrics.expectedFailedStopRate >= 0) {
     lines.push(`| Expected-Failed Stop Rate | ${pct(metrics.expectedFailedStopRate)} |`);
@@ -77,8 +73,8 @@ function renderMarkdown(result: BenchmarkResult): string {
   if (reasons.length > 0) {
     lines.push("## Failure Reasons");
     lines.push("");
-    lines.push(`| Reason | Count |`);
-    lines.push(`|--------|------:|`);
+    lines.push("| Reason | Count |");
+    lines.push("|--------|------:|");
     for (const [reason, count] of reasons) {
       lines.push(`| ${reason} | ${count} |`);
     }
@@ -88,8 +84,8 @@ function renderMarkdown(result: BenchmarkResult): string {
   // Task details
   lines.push("## Task Details");
   lines.push("");
-  lines.push(`| Task | Category | Expected | Actual | Match | Iter | Cost | Risk | Stop Reason |`);
-  lines.push(`|------|----------|----------|--------|:-----:|-----:|-----:|------|-------------|`);
+  lines.push("| Task | Category | Expected | Actual | Match | Iter | Cost | Risk | Stop Reason |");
+  lines.push("|------|----------|----------|--------|:-----:|-----:|-----:|------|-------------|");
   for (const t of tasks) {
     const match = t.matchedExpectation ? "✅" : "❌";
     const actual = t.actualStatus === "error" ? `⚠️ ${t.errorMessage || "error"}` : t.actualStatus;

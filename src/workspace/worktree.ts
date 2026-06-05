@@ -7,8 +7,8 @@
  * On failure: discard the worktree, original repo untouched.
  */
 
-import { execFile, spawn, type ExecException } from "node:child_process";
-import { mkdir, writeFile, readFile, rm } from "node:fs/promises";
+import { type ExecException, execFile, spawn } from "node:child_process";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 export interface WorktreeInfo {
@@ -64,7 +64,12 @@ export async function captureIterationDiff(
   evidenceDir: string,
   iterationIndex: number,
   baseCommit?: string,
-): Promise<{ patchPath: string; changedFiles: string[]; linesAdded: number; linesDeleted: number }> {
+): Promise<{
+  patchPath: string;
+  changedFiles: string[];
+  linesAdded: number;
+  linesDeleted: number;
+}> {
   // Pathspec exclusions for common non-source directories
   const excludes = [
     ":(exclude)node_modules",
@@ -80,13 +85,18 @@ export async function captureIterationDiff(
   const ref = baseCommit ?? "HEAD";
 
   // Get changed files list — diff against pre-executor state
-  const changedCommitted = await git(worktreePath, ["diff", "--name-only", `${ref}`, "--", ...excludes]);
+  const changedCommitted = await git(worktreePath, [
+    "diff",
+    "--name-only",
+    `${ref}`,
+    "--",
+    ...excludes,
+  ]);
   const untracked = await git(worktreePath, ["ls-files", "--others", "--exclude-standard"]);
 
-  const changedFiles = [
-    ...changedCommitted.split("\n"),
-    ...untracked.split("\n"),
-  ].filter(Boolean).filter((f) => !f.startsWith("node_modules/") && !f.startsWith(".git/"));
+  const changedFiles = [...changedCommitted.split("\n"), ...untracked.split("\n")]
+    .filter(Boolean)
+    .filter((f) => !f.startsWith("node_modules/") && !f.startsWith(".git/"));
 
   const uniqueFiles = [...new Set(changedFiles)].sort();
 
@@ -98,8 +108,8 @@ export async function captureIterationDiff(
     for (const line of numstat.split("\n").filter(Boolean)) {
       const parts = line.split("\t");
       if (parts.length >= 2) {
-        linesAdded += parseInt(parts[0], 10) || 0;
-        linesDeleted += parseInt(parts[1], 10) || 0;
+        linesAdded += Number.parseInt(parts[0], 10) || 0;
+        linesDeleted += Number.parseInt(parts[1], 10) || 0;
       }
     }
   } catch {
@@ -117,12 +127,20 @@ export async function captureIterationDiff(
  * Stream git diff output directly to a file.
  * Uses spawn with pipe to avoid maxBuffer limitations.
  */
-async function streamDiffToFile(cwd: string, outputPath: string, excludes: string[], ref = "HEAD"): Promise<void> {
+async function streamDiffToFile(
+  cwd: string,
+  outputPath: string,
+  excludes: string[],
+  ref = "HEAD",
+): Promise<void> {
   const { spawn } = await import("node:child_process");
   const { createWriteStream } = await import("node:fs");
 
-  return new Promise<void>((resolve, reject) => {
-    const child = spawn("git", ["diff", ref, "--", ...excludes], { cwd, stdio: ["ignore", "pipe", "pipe"] });
+  return new Promise<void>((resolve, _reject) => {
+    const child = spawn("git", ["diff", ref, "--", ...excludes], {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     const stream = createWriteStream(outputPath);
 
     child.stdout?.pipe(stream);
@@ -154,7 +172,12 @@ export async function checkpointIteration(
   await git(worktreePath, ["add", "-A"]);
   const hasChanges = await git(worktreePath, ["status", "--porcelain"]);
   if (hasChanges.trim()) {
-    await git(worktreePath, ["commit", "-m", `verdikt: iteration ${iterationIndex}`, "--allow-empty"]);
+    await git(worktreePath, [
+      "commit",
+      "-m",
+      `verdikt: iteration ${iterationIndex}`,
+      "--allow-empty",
+    ]);
   }
   return getHeadCommit(worktreePath);
 }
@@ -163,10 +186,7 @@ export async function checkpointIteration(
  * Get the final diff between the base commit and the current state.
  * Excludes non-source directories to avoid maxBuffer issues.
  */
-export async function getFinalPatch(
-  worktreePath: string,
-  baseCommit: string,
-): Promise<string> {
+export async function getFinalPatch(worktreePath: string, baseCommit: string): Promise<string> {
   const excludes = [
     ":(exclude)node_modules",
     ":(exclude).git",
@@ -234,7 +254,17 @@ export async function discardRun(
  * Get list of test files in a directory (for integrity checking).
  */
 export async function getTestFiles(repoPath: string): Promise<string[]> {
-  const output = await git(repoPath, ["ls-files", "*.test.ts", "*.test.js", "*.test.tsx", "*.test.jsx", "*.spec.ts", "*.spec.js", "*.spec.tsx", "*.spec.jsx"]);
+  const output = await git(repoPath, [
+    "ls-files",
+    "*.test.ts",
+    "*.test.js",
+    "*.test.tsx",
+    "*.test.jsx",
+    "*.spec.ts",
+    "*.spec.js",
+    "*.spec.tsx",
+    "*.spec.jsx",
+  ]);
   return output.split("\n").filter(Boolean);
 }
 
@@ -243,35 +273,6 @@ export async function getTestFiles(repoPath: string): Promise<string[]> {
 export async function getHeadCommit(repoPath: string): Promise<string> {
   const hash = await git(repoPath, ["rev-parse", "HEAD"]);
   return hash.trim();
-}
-
-/**
- * Resolve the full path to git executable once and cache it.
- * This avoids intermittent ENOENT issues with spawn on Windows.
- */
-let _gitPath: string | null = null;
-async function resolveGitPath(): Promise<string> {
-  if (_gitPath) return _gitPath;
-  const { spawn } = await import("node:child_process");
-  return new Promise<string>((resolve) => {
-    const child = spawn(
-      process.platform === "win32" ? "where" : "which",
-      ["git"],
-      { stdio: ["ignore", "pipe", "pipe"] },
-    );
-    let out = "";
-    child.stdout?.on("data", (d: Buffer) => { out += d.toString(); });
-    child.on("close", () => {
-      const first = out.split("\n")[0].trim();
-      // Normalize backslashes to forward slashes for cross-platform compatibility
-      _gitPath = first ? first.replace(/\\/g, "/") : "git";
-      resolve(_gitPath);
-    });
-    child.on("error", () => {
-      _gitPath = "git";
-      resolve(_gitPath);
-    });
-  });
 }
 
 /**
