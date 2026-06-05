@@ -1,0 +1,7 @@
+{
+  "id": "l1-stack",
+  "goal": "Implement the missing methods on the Stack class: peek (returns top item without removing), isEmpty (returns true if empty), size (returns count), toArray (returns copy of items). Do not change existing push/pop behavior.",
+  "repoPath": "./fixtures/l1-stack",
+  "acceptance": { "testCommand": "npx vitest run" },
+  "maxIterations": 3
+}

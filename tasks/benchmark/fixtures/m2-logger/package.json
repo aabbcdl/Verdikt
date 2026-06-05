@@ -1,0 +1,1 @@
+{ "name": "fix-logger", "version": "0.1.0", "private": true, "type": "module", "scripts": { "test": "vitest run" }, "devDependencies": { "vitest": "^3.0.0" } }

@@ -1,0 +1,7 @@
+{
+  "id": "l2-refactor",
+  "goal": "The validator.ts file contains three concerns: input validation (validateInput, validateForm), built-in rules (RULES), and type definitions. Extract the RULES object into a separate file rules.ts and update all imports. All tests must continue to pass after the refactor. Do not change any test files.",
+  "repoPath": "../../examples/demo-dogfood",
+  "acceptance": { "testCommand": "npx vitest run" },
+  "maxIterations": 3
+}

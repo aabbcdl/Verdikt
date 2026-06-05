@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Runtime data (verdikt runs, benchmarks)
+.verdikt/
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Coverage
+coverage/
+
+# Temp
+*.tmp
+*.temp
+
+# Demo submodules (independent git repos, not part of this project)
+examples/demo-cascade/
+examples/demo-cascade-deep/
+examples/demo-dogfood/
+examples/demo-multi-round/

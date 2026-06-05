@@ -1,0 +1,7 @@
+{
+  "id": "m2-logger",
+  "goal": "Fix the logger module. The format should be LEVEL: [prefix] message. shouldLog must filter by minimum level correctly. child loggers must inherit the parent prefix combined with the child prefix.",
+  "repoPath": "./fixtures/m2-logger",
+  "acceptance": { "testCommand": "npx vitest run" },
+  "maxIterations": 3
+}

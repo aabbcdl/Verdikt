@@ -1,0 +1,9 @@
+{
+  "id": "demo-fix-sum",
+  "goal": "Fix the failing test in this repo so that all tests pass. The function `sum` in src/sum.ts should correctly add two numbers.",
+  "repoPath": "./demo-failing-test",
+  "acceptance": {
+    "testCommand": "npx vitest run"
+  },
+  "maxIterations": 5
+}

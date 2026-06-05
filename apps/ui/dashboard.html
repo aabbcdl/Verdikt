@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verdikt — Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --text-dim: #8b949e; --text-bright: #ffffff;
+    --green: #3fb950; --red: #f85149; --yellow: #d29922; --blue: #58a6ff;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    --mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.6; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; color: var(--text-bright); margin-bottom: 0.5rem; }
+  h2 { font-size: 1.1rem; color: var(--text-bright); margin: 1.5rem 0 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+  .subtitle { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 1.5rem; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; }
+  .stat-label { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-value { font-size: 1.25rem; font-weight: 600; color: var(--text-bright); }
+  .status-passed { color: var(--green); }
+  .status-failed { color: var(--red); }
+  .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .badge-ok { background: rgba(63,185,80,0.15); color: var(--green); }
+  .badge-fail { background: rgba(248,81,73,0.15); color: var(--red); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-dim); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; }
+  tr:hover { background: rgba(88,166,255,0.05); }
+  .clickable { cursor: pointer; }
+  .chart-container { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+  .chart-bar { display: flex; align-items: end; gap: 2px; height: 100px; padding-top: 10px; }
+  .bar { flex: 1; min-width: 8px; border-radius: 2px 2px 0 0; transition: height 0.3s; }
+  .bar-passed { background: var(--green); }
+  .bar-failed { background: var(--red); }
+  .bar-cost { background: var(--blue); }
+  .empty { color: var(--text-dim); font-style: italic; padding: 2rem; text-align: center; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+  <h1>📊 Verdikt Dashboard</h1>
+  <p class="subtitle" id="subtitle">Loading...</p>
+
+  <div class="grid" id="stats"></div>
+
+  <h2>📈 Cost Trend</h2>
+  <div class="chart-container">
+    <div class="chart-bar" id="cost-chart"></div>
+  </div>
+
+  <h2>📋 Recent Runs</h2>
+  <table id="runs-table">
+    <thead>
+      <tr>
+        <th>Run ID</th>
+        <th>Task</th>
+        <th>Status</th>
+        <th>Iterations</th>
+        <th>Cost</th>
+        <th>Duration</th>
+        <th>Time</th>
+      </tr>
+    </thead>
+    <tbody id="runs-body"></tbody>
+  </table>
+
+  <h2>📊 Benchmarks</h2>
+  <table id="bench-table">
+    <thead>
+      <tr>
+        <th>Benchmark ID</th>
+        <th>Tasks</th>
+        <th>Passed</th>
+        <th>Cost</th>
+        <th>Time</th>
+      </tr>
+    </thead>
+    <tbody id="bench-body"></tbody>
+  </table>
+
+<script>
+const DATA_URL = '/data/dashboard.json';
+
+async function load() {
+  try {
+    const res = await fetch(DATA_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    render(data);
+  } catch (err) {
+    document.getElementById('subtitle').textContent = `Error: ${err.message}`;
+  }
+}
+
+function render(data) {
+  const { runs, benchmarks, stats } = data;
+
+  // Subtitle
+  document.getElementById('subtitle').textContent =
+    `${stats.totalRuns} runs · ${stats.totalBenchmarks} benchmarks · $${stats.totalCost.toFixed(2)} total`;
+
+  // Stats cards
+  const statsEl = document.getElementById('stats');
+  statsEl.innerHTML = `
+    <div class="card"><div class="stat-label">Total Runs</div><div class="stat-value">${stats.totalRuns}</div></div>
+    <div class="card"><div class="stat-label">Pass Rate</div><div class="stat-value ${stats.passRate >= 0.8 ? 'status-passed' : 'status-failed'}">${(stats.passRate * 100).toFixed(0)}%</div></div>
+    <div class="card"><div class="stat-label">Total Cost</div><div class="stat-value">$${stats.totalCost.toFixed(2)}</div></div>
+    <div class="card"><div class="stat-label">Avg Iterations</div><div class="stat-value">${stats.avgIterations.toFixed(1)}</div></div>
+  `;
+
+  // Cost chart
+  const costChart = document.getElementById('cost-chart');
+  if (runs.length > 0) {
+    const maxCost = Math.max(...runs.map(r => r.totalCostUsd || 0));
+    costChart.innerHTML = runs.slice(-20).map(r => {
+      const cost = r.totalCostUsd || 0;
+      const h = maxCost > 0 ? (cost / maxCost) * 100 : 0;
+      const cls = r.stopReason === 'passed' ? 'bar-passed' : 'bar-failed';
+      return `<div class="bar ${cls}" style="height:${Math.max(h, 4)}px" title="${r.runId}: $${cost.toFixed(4)}"></div>`;
+    }).join('');
+  } else {
+    costChart.innerHTML = '<div class="empty">No runs yet</div>';
+  }
+
+  // Runs table
+  const runsBody = document.getElementById('runs-body');
+  if (runs.length === 0) {
+    runsBody.innerHTML = '<tr><td colspan="7" class="empty">No runs found</td></tr>';
+  } else {
+    runsBody.innerHTML = runs.slice().reverse().map(r => `
+      <tr class="clickable" onclick="window.location='/view/${r.runId}'">
+        <td><a href="/view/${r.runId}">${r.runId}</a></td>
+        <td>${r.taskId || '?'}</td>
+        <td>${r.stopReason === 'passed'
+          ? '<span class="badge badge-ok">passed</span>'
+          : `<span class="badge badge-fail">${r.stopReason}</span>`}</td>
+        <td>${r.iterations || '?'}</td>
+        <td>$${(r.totalCostUsd || 0).toFixed(4)}</td>
+        <td>${fmtDuration(r.totalDurationMs)}</td>
+        <td>${r.timestamp ? new Date(r.timestamp).toLocaleString() : '?'}</td>
+      </tr>
+    `).join('');
+  }
+
+  // Benchmarks table
+  const benchBody = document.getElementById('bench-body');
+  if (benchmarks.length === 0) {
+    benchBody.innerHTML = '<tr><td colspan="5" class="empty">No benchmarks found</td></tr>';
+  } else {
+    benchBody.innerHTML = benchmarks.map(b => `
+      <tr class="clickable" onclick="window.location='/view/${b.id}'">
+        <td><a href="/view/${b.id}">${b.id}</a></td>
+        <td>${b.tasks || '?'}</td>
+        <td>${b.passed || 0}/${b.tasks || 0}</td>
+        <td>$${(b.totalCostUsd || 0).toFixed(2)}</td>
+        <td>${fmtDuration(b.totalDurationMs)}</td>
+      </tr>
+    `).join('');
+  }
+}
+
+function fmtDuration(ms) {
+  if (!ms) return '?';
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms/1000).toFixed(1)}s`;
+  return `${(ms/60000).toFixed(1)}m`;
+}
+
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "id": "m5-new-rule",
+  "goal": "Add a new built-in rule 'has-license' to src/rule-engine/builtin-rules.ts that checks whether the repository has a LICENSE file. The rule should: (1) check for LICENSE, LICENSE.md, LICENSE.txt, or LICENCE files, (2) return a warning if no license is found, (3) include the rule in the default rules array. Add corresponding tests in tests/rule-engine.test.ts. All existing tests must continue to pass.",
+  "repoPath": "D:/project/github_star/RepoDoctor",
+  "acceptance": {
+    "testCommand": "npx vitest --run",
+    "steps": [
+      { "id": "test", "command": "npx", "args": ["vitest", "--run"] },
+      { "id": "typecheck", "command": "npx", "args": ["tsc", "--noEmit"] }
+    ]
+  },
+  "maxIterations": 4,
+  "semantic": { "maxRisk": "low" }
+}

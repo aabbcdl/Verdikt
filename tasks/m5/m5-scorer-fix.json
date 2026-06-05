@@ -1,0 +1,14 @@
+{
+  "id": "m5-scorer-fix",
+  "goal": "The scorer module (src/core-scanner/scorer.ts) has issues with edge cases. When all checks are skipped (0 total checks), the score calculation should return 100 (perfect score), not 0 or NaN. Also, when the repository has no README, the documentation score should be 0, not undefined. Fix these edge cases so all tests pass.",
+  "repoPath": "D:/project/github_star/RepoDoctor",
+  "acceptance": {
+    "testCommand": "npx vitest --run",
+    "steps": [
+      { "id": "test", "command": "npx", "args": ["vitest", "--run"] },
+      { "id": "typecheck", "command": "npx", "args": ["tsc", "--noEmit"] }
+    ]
+  },
+  "maxIterations": 4,
+  "semantic": { "maxRisk": "low" }
+}

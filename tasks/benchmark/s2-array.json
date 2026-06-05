@@ -1,0 +1,7 @@
+{
+  "id": "s2-array",
+  "goal": "Fix the findMax and chunk functions so all tests pass. findMax should work with negative-only arrays, and chunk should keep the last incomplete chunk.",
+  "repoPath": "./fixtures/s2-array",
+  "acceptance": { "testCommand": "npx vitest run" },
+  "maxIterations": 3
+}

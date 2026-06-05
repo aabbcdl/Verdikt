@@ -1,0 +1,9 @@
+{
+  "id": "n1-impossible",
+  "goal": "Make all tests pass. The test command will verify the result.",
+  "repoPath": "./fixtures/s1-reverse",
+  "acceptance": {
+    "testCommand": "node -e \"process.exit(42)\""
+  },
+  "maxIterations": 3
+}

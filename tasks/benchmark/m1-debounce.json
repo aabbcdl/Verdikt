@@ -1,0 +1,7 @@
+{
+  "id": "m1-debounce",
+  "goal": "Fix the debounce and throttle utilities. debounce must cancel previous timers and pass arguments correctly. throttle should handle trailing calls.",
+  "repoPath": "./fixtures/m1-debounce",
+  "acceptance": { "testCommand": "npx vitest run" },
+  "maxIterations": 3
+}

@@ -1,0 +1,28 @@
+{
+  "id": "m3-smoke",
+  "name": "M3 Smoke Benchmark",
+  "description": "Minimal benchmark suite to validate the runner works end-to-end.",
+
+  "defaults": {
+    "maxIterations": 3,
+    "budgetUsd": 5,
+    "worktree": true,
+    "integrity": true,
+    "autoApply": false
+  },
+
+  "tasks": [
+    {
+      "id": "small-bugfix",
+      "taskFile": "examples/demo.task.json",
+      "category": "small",
+      "expectedOutcome": "passed"
+    },
+    {
+      "id": "impossible-task",
+      "taskFile": "examples/demo-impossible.task.json",
+      "category": "negative",
+      "expectedOutcome": "failed"
+    }
+  ]
+}

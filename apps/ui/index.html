@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verdikt — Run Report</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --text-dim: #8b949e; --text-bright: #ffffff;
+    --green: #3fb950; --red: #f85149; --yellow: #d29922; --blue: #58a6ff;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    --mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.6; padding: 2rem; max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; color: var(--text-bright); margin-bottom: 0.5rem; }
+  h2 { font-size: 1.1rem; color: var(--text-bright); margin: 1.5rem 0 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+  .subtitle { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 1.5rem; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; }
+  .stat { }
+  .stat-label { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-value { font-size: 1.25rem; font-weight: 600; color: var(--text-bright); }
+  .status-passed { color: var(--green); }
+  .status-failed { color: var(--red); }
+  .status-warning { color: var(--yellow); }
+  .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .badge-ok { background: rgba(63,185,80,0.15); color: var(--green); }
+  .badge-fail { background: rgba(248,81,73,0.15); color: var(--red); }
+  .badge-warn { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  .badge-pending { background: rgba(88,166,255,0.15); color: var(--blue); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-dim); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; }
+  .file-list { font-family: var(--mono); font-size: 0.8rem; color: var(--text-dim); }
+  .timeline { position: relative; padding-left: 1.5rem; }
+  .timeline::before { content: ''; position: absolute; left: 0.35rem; top: 0; bottom: 0; width: 2px; background: var(--border); }
+  .timeline-item { position: relative; margin-bottom: 1.25rem; }
+  .timeline-item::before { content: ''; position: absolute; left: -1.25rem; top: 0.45rem; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--border); background: var(--bg); }
+  .timeline-item.passed::before { border-color: var(--green); background: var(--green); }
+  .timeline-item.failed::before { border-color: var(--red); background: var(--red); }
+  .timeline-header { font-weight: 600; color: var(--text-bright); font-size: 0.9rem; }
+  .timeline-meta { font-size: 0.8rem; color: var(--text-dim); }
+  .feedback { background: rgba(88,166,255,0.08); border-left: 3px solid var(--blue); padding: 0.5rem 0.75rem; margin-top: 0.5rem; font-size: 0.85rem; border-radius: 0 4px 4px 0; }
+  .actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
+  .btn { padding: 0.5rem 1rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font-size: 0.85rem; }
+  .btn:hover { border-color: var(--blue); }
+  .btn-primary { background: rgba(88,166,255,0.15); border-color: var(--blue); color: var(--blue); }
+  pre { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 0.75rem; overflow-x: auto; font-family: var(--mono); font-size: 0.8rem; color: var(--text-dim); white-space: pre-wrap; word-break: break-word; }
+  .empty { color: var(--text-dim); font-style: italic; padding: 2rem; text-align: center; }
+  .safety-row { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+  .safety-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+
+<h1>Verdikt Run Report</h1>
+<p class="subtitle" id="run-id">Loading...</p>
+
+<div class="card">
+  <div class="grid" id="status-grid"></div>
+</div>
+
+<h2>Safety</h2>
+<div class="card">
+  <div class="safety-row" id="safety-info"></div>
+</div>
+
+<h2>Patch</h2>
+<div class="card" id="patch-info"></div>
+
+<h2>Iterations</h2>
+<div id="iterations"></div>
+
+<h2>Evidence</h2>
+<div class="card" id="evidence"></div>
+
+<script>
+// Load summary.json from the same directory or a specified path
+async function loadRun() {
+  // Try to get runDir from URL params
+  const params = new URLSearchParams(window.location.search);
+  let basePath = params.get('dir') || '';
+
+  // If no dir specified, show a file picker prompt
+  if (!basePath) {
+    document.getElementById('run-id').textContent = 'Add ?dir=<path-to-run-directory> to the URL';
+    document.getElementById('status-grid').innerHTML = '<div class="empty">No run directory specified. Use: ?dir=.verdikt/run-xxx</div>';
+    return;
+  }
+
+  // Normalize path separators
+  basePath = basePath.replace(/\\/g, '/');
+
+  try {
+    const summaryRes = await fetch(`${basePath}/summary.json`);
+    if (!summaryRes.ok) throw new Error(`Could not load ${basePath}/summary.json`);
+    const summary = await summaryRes.json();
+
+    let iterations = [];
+    try {
+      const iterRes = await fetch(`${basePath}/iterations.jsonl`);
+      if (iterRes.ok) {
+        const text = await iterRes.text();
+        iterations = text.trim().split('\n').filter(Boolean).map(line => {
+          try { return JSON.parse(line); } catch { return null; }
+        }).filter(Boolean);
+      }
+    } catch {}
+
+    render(summary, iterations, basePath);
+  } catch (err) {
+    document.getElementById('run-id').textContent = `Error: ${err.message}`;
+  }
+}
+
+function render(summary, iterations, basePath) {
+  // Header
+  const statusClass = summary.status === 'passed' ? 'status-passed' : 'status-failed';
+  document.getElementById('run-id').innerHTML =
+    `<span class="${statusClass}">${summary.runId || 'unknown'}</span> · ${summary.taskId || ''} · ${summary.timestamp || ''}`;
+
+  // Status grid
+  const grid = document.getElementById('status-grid');
+  const iterCount = summary.iterations?.length || 0;
+  const statusIcon = summary.status === 'passed' ? '✅' : '❌';
+  grid.innerHTML = `
+    <div class="stat"><div class="stat-label">Status</div><div class="stat-value ${statusClass}">${statusIcon} ${summary.status || summary.stopReason}</div></div>
+    <div class="stat"><div class="stat-label">Iterations</div><div class="stat-value">${iterCount}</div></div>
+    <div class="stat"><div class="stat-label">Cost</div><div class="stat-value">$${(summary.totalCostUsd || 0).toFixed(2)}</div></div>
+    <div class="stat"><div class="stat-label">Duration</div><div class="stat-value">${formatDuration(summary.totalDurationMs)}</div></div>
+    <div class="stat"><div class="stat-label">Apply Status</div><div class="stat-value"><span class="badge badge-${applyBadge(summary.applyStatus)}">${summary.applyStatus || 'pending'}</span></div></div>
+  `;
+
+  // Safety
+  const safety = document.getElementById('safety-info');
+  const ws = summary.workspace;
+  const integ = summary.integrity;
+  safety.innerHTML = `
+    <div class="safety-item">${ws?.mode === 'isolated' ? '🔒' : '⚠️'} Workspace: ${ws?.mode || 'unknown'}</div>
+    <div class="safety-item">📋 Original repo clean: ${ws?.originalRepoCleanBeforeApply ? '✅' : '❌'}</div>
+    <div class="safety-item">🛡️ Integrity: <span class="badge badge-${integ?.status === 'ok' ? 'ok' : 'fail'}">${integ?.status || 'unknown'}</span></div>
+    <div class="safety-item">🔍 Anti-cheating: ${integ?.criticalCount > 0 ? `<span class="badge badge-fail">${integ.criticalCount} critical</span>` : '<span class="badge badge-ok">clean</span>'}</div>
+  `;
+
+  // Patch
+  const patchInfo = document.getElementById('patch-info');
+  const patch = summary.patch;
+  if (patch) {
+    const allFiles = [...new Set((summary.iterations || []).flatMap(it => it.patch?.filesChanged || []))];
+    patchInfo.innerHTML = `
+      <div class="grid">
+        <div class="stat"><div class="stat-label">Files Changed</div><div class="stat-value">${patch.filesChanged || allFiles.length}</div></div>
+        <div class="stat"><div class="stat-label">Patch</div><div class="stat-value">${patch.finalPatchPath ? '📄 saved' : '—'}</div></div>
+      </div>
+      <div class="file-list" style="margin-top:0.75rem">${allFiles.map(f => `• ${f}`).join('<br>') || 'No files changed'}</div>
+    `;
+  } else {
+    patchInfo.innerHTML = '<div class="empty">No patch data</div>';
+  }
+
+  // Iterations
+  const iterDiv = document.getElementById('iterations');
+  if (!summary.iterations || summary.iterations.length === 0) {
+    iterDiv.innerHTML = '<div class="empty">No iterations recorded</div>';
+  } else {
+    iterDiv.innerHTML = '<div class="timeline">' + summary.iterations.map((it, i) => {
+      const judgeClass = it.judge?.passed ? 'passed' : 'failed';
+      const verifier = it.verifier || {};
+      return `
+        <div class="timeline-item ${judgeClass}">
+          <div class="timeline-header">Round ${i + 1}</div>
+          <div class="timeline-meta">
+            ${formatDuration(it.durationMs)} · $${(it.costUsd || 0).toFixed(4)} ·
+            Judge: <span class="badge badge-${it.judge?.passed ? 'ok' : 'fail'}">${it.judge?.summary || (it.judge?.passed ? 'passed' : 'failed')}</span>
+            ${it.integrity ? ` · Integrity: <span class="badge badge-${it.integrity.status === 'ok' ? 'ok' : 'fail'}">${it.integrity.status}</span>` : ''}
+          </div>
+          ${verifier.nextInstruction ? `<div class="feedback">💡 ${escapeHtml(verifier.nextInstruction)}</div>` : ''}
+          ${verifier.problems?.length ? `<div class="feedback" style="border-left-color:var(--red)">❌ ${verifier.problems.map(escapeHtml).join('<br>')}</div>` : ''}
+          ${it.patch?.filesChanged?.length ? `<div class="file-list" style="margin-top:0.4rem">${it.patch.filesChanged.map(f => `• ${f}`).join('<br>')}</div>` : ''}
+        </div>
+      `;
+    }).join('') + '</div>';
+  }
+
+  // Evidence
+  const evidence = document.getElementById('evidence');
+  evidence.innerHTML = `
+    <table>
+      <tr><th>File</th><th>Path</th></tr>
+      <tr><td>summary.json</td><td class="file-list">${basePath}/summary.json</td></tr>
+      <tr><td>iterations.jsonl</td><td class="file-list">${basePath}/iterations.jsonl</td></tr>
+      ${patch?.finalPatchPath ? `<tr><td>final.patch</td><td class="file-list">${patch.finalPatchPath}</td></tr>` : ''}
+    </table>
+  `;
+}
+
+function formatDuration(ms) {
+  if (!ms) return '—';
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms/1000).toFixed(1)}s`;
+  return `${(ms/60000).toFixed(1)}m`;
+}
+
+function applyBadge(status) {
+  if (status === 'applied') return 'ok';
+  if (status === 'discarded') return 'fail';
+  return 'pending';
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+loadRun();
+</script>
+</body>
+</html>

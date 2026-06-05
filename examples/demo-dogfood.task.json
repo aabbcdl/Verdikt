@@ -1,0 +1,9 @@
+{
+  "id": "demo-dogfood",
+  "goal": "Fix all bugs in the input validation system so that every test passes. The codebase has three modules (validator.ts, sanitizer.ts, integration.ts) with multiple bugs. Read the test expectations carefully to understand the correct behavior, then fix the source code to match. Be thorough — fixing one bug may reveal another.",
+  "repoPath": "./demo-dogfood",
+  "acceptance": {
+    "testCommand": "npx vitest run"
+  },
+  "maxIterations": 5
+}

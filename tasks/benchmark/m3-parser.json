@@ -1,0 +1,7 @@
+{
+  "id": "m3-parser",
+  "goal": "Fix the key-value parser. It must trim values, handle quoted values (preserving content), and not strip # characters inside quoted strings.",
+  "repoPath": "./fixtures/m3-parser",
+  "acceptance": { "testCommand": "npx vitest run" },
+  "maxIterations": 3
+}

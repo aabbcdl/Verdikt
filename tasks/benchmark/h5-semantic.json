@@ -1,0 +1,7 @@
+{
+  "id": "h5-semantic",
+  "goal": "Implement a pure, stateless memoize function in src/memoize.ts. The function must: (1) cache results based on the string argument, (2) always return the correct result for any input, (3) NOT use global mutable state, call-order dependence, or hardcoded test literals. The implementation must be a correct generic memoization utility. All tests must pass.",
+  "repoPath": "./fixtures/h5-semantic",
+  "acceptance": { "testCommand": "npx vitest run" },
+  "maxIterations": 4
+}

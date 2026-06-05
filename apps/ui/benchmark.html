@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verdikt — Benchmark Overview</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --text-dim: #8b949e; --text-bright: #ffffff;
+    --green: #3fb950; --red: #f85149; --yellow: #d29922; --blue: #58a6ff; --purple: #bc8cff;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    --mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.6; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; color: var(--text-bright); margin-bottom: 0.25rem; }
+  h2 { font-size: 1.1rem; color: var(--text-bright); margin: 2rem 0 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+  .subtitle { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 1.5rem; }
+
+  /* Metric cards */
+  .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+  .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem 1rem; }
+  .metric-label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
+  .metric-value { font-size: 1.4rem; font-weight: 700; color: var(--text-bright); }
+  .metric-value.good { color: var(--green); }
+  .metric-value.warn { color: var(--yellow); }
+  .metric-value.bad { color: var(--red); }
+
+  /* Task table */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-dim); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; }
+  tr:hover { background: rgba(88,166,255,0.04); }
+  .badge { display: inline-block; padding: 0.12rem 0.45rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
+  .badge-passed { background: rgba(63,185,80,0.15); color: var(--green); }
+  .badge-failed { background: rgba(248,81,73,0.15); color: var(--red); }
+  .badge-error { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  .badge-category { background: rgba(188,140,255,0.12); color: var(--purple); font-weight: 500; }
+  .badge-risk { background: rgba(210,153,34,0.15); color: var(--yellow); }
+
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .empty { color: var(--text-dim); font-style: italic; padding: 2rem; text-align: center; }
+  .bar { height: 6px; border-radius: 3px; background: var(--border); margin-top: 0.3rem; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+  .bar-fill.good { background: var(--green); }
+  .bar-fill.warn { background: var(--yellow); }
+  .bar-fill.bad { background: var(--red); }
+  .recovery-badge { color: var(--green); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1>Verdikt Benchmark</h1>
+<p class="subtitle" id="bench-id">Loading...</p>
+
+<div class="metrics-grid" id="metrics"></div>
+
+<h2>Tasks</h2>
+<div class="card">
+  <table id="task-table">
+    <thead>
+      <tr>
+        <th>Task</th>
+        <th>Category</th>
+        <th>Expected</th>
+        <th>Actual</th>
+        <th>Match</th>
+        <th>Iter</th>
+        <th>Cost</th>
+        <th>Duration</th>
+        <th>Risk</th>
+        <th>Stop Reason</th>
+      </tr>
+    </thead>
+    <tbody id="task-body"></tbody>
+  </table>
+</div>
+
+<h2>Recovery Analysis</h2>
+<div class="card" id="recovery-section"></div>
+
+<h2>Evidence</h2>
+<div class="card" id="evidence-section"></div>
+
+<script>
+async function load() {
+  const params = new URLSearchParams(window.location.search);
+  let basePath = params.get('dir') || '';
+  if (!basePath) {
+    document.getElementById('bench-id').textContent = 'Add ?dir=<path-to-benchmark-dir> to the URL';
+    return;
+  }
+  basePath = basePath.replace(/\\/g, '/');
+
+  try {
+    const res = await fetch(`${basePath}/benchmark.json`);
+    if (!res.ok) throw new Error(`Could not load ${basePath}/benchmark.json`);
+    const data = await res.json();
+    render(data, basePath);
+  } catch (err) {
+    document.getElementById('bench-id').textContent = `Error: ${err.message}`;
+  }
+}
+
+function render(data, basePath) {
+  const m = data.metrics;
+  const t = data.totals;
+
+  // Header
+  document.getElementById('bench-id').innerHTML =
+    `<strong>${data.suiteId}</strong> · ${data.benchmarkId} · ${data.status} · ${data.completedAt}`;
+
+  // Metrics cards
+  const metricsHtml = [
+    metricCard('Tasks', t.tasks, ''),
+    metricCard('Success Rate', pct(m.successRate), rateClass(m.successRate)),
+    metricCard('Expected Outcome', pct(m.expectedOutcomeRate), rateClass(m.expectedOutcomeRate)),
+    metricCard('First Try Pass', pct(m.firstTryPassRate), rateClass(m.firstTryPassRate)),
+    metricCard('Multi-Round Recovery', pct(m.multiRoundRecoveryRate), m.multiRoundRecoveryRate > 0 ? 'good' : ''),
+    metricCard('Recovery Samples', m.recoverableFailureSampleCount, m.recoverableFailureSampleCount > 0 ? 'good' : ''),
+    metricCard('Avg Iterations', m.avgIterations.toFixed(2), ''),
+    metricCard('Avg Cost', `$${m.avgCostUsd.toFixed(2)}`, ''),
+    metricCard('Avg Duration', fmtDuration(m.avgDurationMs), ''),
+    metricCard('Infra Errors', m.infrastructureErrorRate === 0 ? '0' : pct(m.infrastructureErrorRate), m.infrastructureErrorRate === 0 ? 'good' : 'bad'),
+  ].join('');
+  document.getElementById('metrics').innerHTML = metricsHtml;
+
+  // Task table
+  const tbody = document.getElementById('task-body');
+  tbody.innerHTML = data.tasks.map(t => {
+    const matchBadge = t.matchedExpectation
+      ? '<span class="badge badge-passed">✓</span>'
+      : '<span class="badge badge-failed">✗</span>';
+    const actualBadge = t.actualStatus === 'passed'
+      ? '<span class="badge badge-passed">passed</span>'
+      : t.actualStatus === 'error'
+        ? '<span class="badge badge-error">error</span>'
+        : '<span class="badge badge-failed">failed</span>';
+    const riskBadge = t.semanticRisk && t.semanticRisk !== 'none'
+      ? `<span class="badge badge-risk">${t.semanticRisk}</span>`
+      : '—';
+    return `<tr>
+      <td><strong>${t.taskId}</strong></td>
+      <td><span class="badge badge-category">${t.category}</span></td>
+      <td>${t.expectedOutcome}</td>
+      <td>${actualBadge}</td>
+      <td>${matchBadge}</td>
+      <td>${t.iterations}</td>
+      <td>$${t.costUsd.toFixed(2)}</td>
+      <td>${fmtDuration(t.durationMs)}</td>
+      <td>${riskBadge}</td>
+      <td>${t.stopReason || '—'}</td>
+    </tr>`;
+  }).join('');
+
+  // Recovery analysis
+  const recoveryDiv = document.getElementById('recovery-section');
+  const recoverable = m.recoverableFailureSampleCount || 0;
+  const recoveryRate = m.recoverableFailureRecoveryRate;
+  if (recoverable > 0) {
+    recoveryDiv.innerHTML = `
+      <p><strong class="recovery-badge">✓ ${recoverable} recoverable failure(s) detected</strong></p>
+      <p>Recovery Rate: <strong>${recoveryRate >= 0 ? pct(recoveryRate) : 'N/A'}</strong></p>
+      <p style="color:var(--text-dim);margin-top:0.5rem;font-size:0.85rem;">
+        These tasks failed on the first iteration but recovered after verifier feedback.
+        This validates Verdikt's core multi-round recovery capability.
+      </p>
+    `;
+  } else {
+    recoveryDiv.innerHTML = `
+      <p style="color:var(--text-dim)">No recoverable failures in this benchmark. All passed tasks succeeded on the first try.</p>
+    `;
+  }
+
+  // Evidence links
+  const evDiv = document.getElementById('evidence-section');
+  evDiv.innerHTML = `
+    <table>
+      <tr><th>File</th><th>Path</th></tr>
+      <tr><td>benchmark.json</td><td class="file-list" style="font-family:var(--mono);font-size:0.8rem;color:var(--text-dim)">${basePath}/benchmark.json</td></tr>
+      <tr><td>benchmark.md</td><td class="file-list" style="font-family:var(--mono);font-size:0.8rem;color:var(--text-dim)">${basePath}/benchmark.md</td></tr>
+      ${data.tasks.map(t => `<tr><td>${t.taskId} summary</td><td class="file-list" style="font-family:var(--mono);font-size:0.8rem;color:var(--text-dim)">${t.summaryPath || '—'}</td></tr>`).join('')}
+    </table>
+  `;
+}
+
+function metricCard(label, value, cls) {
+  return `<div class="metric-card">
+    <div class="metric-label">${label}</div>
+    <div class="metric-value ${cls}">${value}</div>
+  </div>`;
+}
+
+function pct(n) { return n >= 0 ? `${(n * 100).toFixed(1)}%` : 'N/A'; }
+function rateClass(n) { return n >= 0.9 ? 'good' : n >= 0.7 ? 'warn' : 'bad'; }
+function fmtDuration(ms) {
+  if (!ms) return '—';
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms/1000).toFixed(1)}s`;
+  return `${(ms/60000).toFixed(1)}m`;
+}
+
+load();
+</script>
+</body>
+</html>

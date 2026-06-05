@@ -1,0 +1,7 @@
+{
+  "id": "r1-regression",
+  "goal": "Fix the failing test. The sum function should add two numbers correctly.",
+  "repoPath": "../../examples/demo-failing-test",
+  "acceptance": { "testCommand": "npx vitest run" },
+  "maxIterations": 3
+}

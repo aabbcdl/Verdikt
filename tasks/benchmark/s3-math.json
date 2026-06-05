@@ -1,0 +1,7 @@
+{
+  "id": "s3-math",
+  "goal": "Fix the percentage and average functions. percentage should not round prematurely, and average should only count defined values in the denominator.",
+  "repoPath": "./fixtures/s3-math",
+  "acceptance": { "testCommand": "npx vitest run" },
+  "maxIterations": 3
+}

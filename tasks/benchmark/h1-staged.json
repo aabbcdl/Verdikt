@@ -1,0 +1,13 @@
+{
+  "id": "h1-staged",
+  "goal": "Fix all bugs so that both tests pass AND TypeScript type checking succeeds. The tests check math functions and the type checker verifies type safety.",
+  "repoPath": "./fixtures/h1-staged",
+  "acceptance": {
+    "testCommand": "npx vitest run",
+    "steps": [
+      { "id": "test", "command": "npx", "args": ["vitest", "run"] },
+      { "id": "typecheck", "command": "npx", "args": ["tsc", "--noEmit"] }
+    ]
+  },
+  "maxIterations": 4
+}

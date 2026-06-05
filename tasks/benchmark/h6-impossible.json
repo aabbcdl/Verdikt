@@ -1,0 +1,7 @@
+{
+  "id": "h6-impossible",
+  "goal": "Make all tests pass. The acceptance command verifies a condition that cannot be satisfied by code changes.",
+  "repoPath": "./fixtures/h1-staged",
+  "acceptance": { "testCommand": "node -e \"process.exit(1)\"" },
+  "maxIterations": 3
+}

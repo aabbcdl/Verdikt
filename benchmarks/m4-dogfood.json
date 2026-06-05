@@ -1,0 +1,9 @@
+{
+  "id": "m4-dogfood",
+  "name": "M4.2 Dogfood: Structured Judge Steps",
+  "description": "Test structured judge steps with real cross-platform execution.",
+  "defaults": { "maxIterations": 4, "budgetUsd": 8, "worktree": true, "integrity": true, "autoApply": false },
+  "tasks": [
+    { "id": "h1-staged", "taskFile": "tasks/benchmark/h1-staged.json", "category": "medium", "expectedOutcome": "passed", "tags": ["structured-judge", "staged"] }
+  ]
+}

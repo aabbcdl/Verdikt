@@ -1,0 +1,7 @@
+{
+  "id": "s1-reverse",
+  "goal": "Fix the isPalindrome function so it correctly detects palindromes ignoring case and punctuation. The test 'detects palindrome ignoring case' expects isPalindrome('Racecar') to return true.",
+  "repoPath": "./fixtures/s1-reverse",
+  "acceptance": { "testCommand": "npx vitest run" },
+  "maxIterations": 3
+}

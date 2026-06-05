@@ -1,0 +1,8 @@
+{
+  "id": "m4-h6-rerun",
+  "name": "M4 H6 Impossible Re-run",
+  "defaults": { "maxIterations": 3, "budgetUsd": 5, "worktree": true, "integrity": true, "autoApply": false },
+  "tasks": [
+    { "id": "h6-impossible", "taskFile": "tasks/benchmark/h6-impossible.json", "category": "negative", "expectedOutcome": "failed" }
+  ]
+}

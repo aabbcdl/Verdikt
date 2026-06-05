@@ -1,0 +1,7 @@
+{
+  "id": "h4-feature",
+  "goal": "Implement batch operations on the KVStore class in src/store.ts: batchSet(pairs: [string, string][]), batchGet(keys: string[]): [string, string][], and batchDelete(keys: string[]): number. All existing tests and the new batch operation tests must pass.",
+  "repoPath": "./fixtures/h4-feature",
+  "acceptance": { "testCommand": "npx vitest run" },
+  "maxIterations": 4
+}

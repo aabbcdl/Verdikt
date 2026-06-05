@@ -1,0 +1,7 @@
+{
+  "id": "h2-cascade",
+  "goal": "Fix all bugs in the config parser (src/config.ts). Read the tests carefully to understand expected behavior. Fix parseLine first, then mergeConfigs, then formatOutput. Each fix may reveal the next bug.",
+  "repoPath": "./fixtures/h2-cascade",
+  "acceptance": { "testCommand": "npx vitest run" },
+  "maxIterations": 4
+}

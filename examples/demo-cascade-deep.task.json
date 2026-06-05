@@ -1,0 +1,7 @@
+{
+  "id": "demo-cascade-deep",
+  "goal": "Fix all bugs in the math utilities (src/mathUtils.ts) so that every test passes. Read the test expectations carefully. Be thorough — fixing one function may reveal bugs in another.",
+  "repoPath": "./demo-cascade-deep",
+  "acceptance": { "testCommand": "npx vitest run" },
+  "maxIterations": 5
+}

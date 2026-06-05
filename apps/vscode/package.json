@@ -1,0 +1,77 @@
+{
+  "name": "verdikt-vscode",
+  "displayName": "Verdikt — Autonomous Iterative Coder",
+  "description": "View and manage Verdikt runs directly in VS Code",
+  "version": "0.1.0",
+  "publisher": "verdikt",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "verdikt",
+          "title": "Verdikt",
+          "icon": "media/verdikt.svg"
+        }
+      ]
+    },
+    "views": {
+      "verdikt": [
+        {
+          "id": "verdiktRuns",
+          "name": "Runs"
+        },
+        {
+          "id": "verdiktBenchmarks",
+          "name": "Benchmarks"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "verdikt.refresh",
+        "title": "Refresh",
+        "category": "Verdikt"
+      },
+      {
+        "command": "verdikt.viewRun",
+        "title": "View Run",
+        "category": "Verdikt"
+      },
+      {
+        "command": "verdikt.apply",
+        "title": "Apply Patch",
+        "category": "Verdikt"
+      },
+      {
+        "command": "verdikt.discard",
+        "title": "Discard Run",
+        "category": "Verdikt"
+      },
+      {
+        "command": "verdikt.run",
+        "title": "Run Task",
+        "category": "Verdikt"
+      },
+      {
+        "command": "verdikt.dashboard",
+        "title": "Open Dashboard",
+        "category": "Verdikt"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}

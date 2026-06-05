@@ -1,0 +1,23 @@
+{
+  "id": "m4-hard",
+  "name": "M4 Hard Task Benchmark",
+  "description": "Stress tasks designed to trigger first-round failures and multi-round recovery. Includes semantic risk gate.",
+
+  "defaults": {
+    "maxIterations": 4,
+    "budgetUsd": 8,
+    "worktree": true,
+    "integrity": true,
+    "autoApply": false
+  },
+
+  "tasks": [
+    { "id": "h1-staged", "taskFile": "tasks/benchmark/h1-staged.json", "category": "medium", "expectedOutcome": "passed", "tags": ["staged-judge"] },
+    { "id": "h2-cascade", "taskFile": "tasks/benchmark/h2-cascade.json", "category": "medium", "expectedOutcome": "passed", "tags": ["cascade"] },
+    { "id": "h3-refactor", "taskFile": "tasks/benchmark/h3-refactor.json", "category": "large", "expectedOutcome": "passed", "tags": ["refactor"] },
+    { "id": "h4-feature", "taskFile": "tasks/benchmark/h4-feature.json", "category": "large", "expectedOutcome": "passed", "tags": ["new-feature"] },
+    { "id": "h5-semantic", "taskFile": "tasks/benchmark/h5-semantic.json", "category": "medium", "expectedOutcome": "passed", "tags": ["semantic"] },
+    { "id": "h7-recovery", "taskFile": "tasks/benchmark/h7-recovery.json", "category": "medium", "expectedOutcome": "passed", "tags": ["semantic-gate", "recovery"] },
+    { "id": "h6-impossible", "taskFile": "tasks/benchmark/h6-impossible.json", "category": "negative", "expectedOutcome": "failed", "tags": ["negative"] }
+  ]
+}

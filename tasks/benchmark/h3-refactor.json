@@ -1,0 +1,7 @@
+{
+  "id": "h3-refactor",
+  "goal": "Refactor src/utils.ts by extracting string utilities into src/stringUtils.ts and number utilities into src/numberUtils.ts. Keep src/utils.ts as a re-export barrel that re-exports everything from the new modules. All existing imports and tests must continue to work without modification. Do not change any test files.",
+  "repoPath": "./fixtures/h3-refactor",
+  "acceptance": { "testCommand": "npx vitest run" },
+  "maxIterations": 4
+}

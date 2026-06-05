@@ -1,0 +1,9 @@
+{
+  "id": "demo-impossible",
+  "goal": "Make all tests pass. This task is intentionally impossible — the acceptance command always fails.",
+  "repoPath": "./demo-failing-test",
+  "acceptance": {
+    "testCommand": "node -e \"process.exit(42)\""
+  },
+  "maxIterations": 2
+}

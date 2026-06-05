@@ -1,0 +1,8 @@
+{
+  "id": "h7-recovery",
+  "goal": "Implement the three string utility functions (slugify, truncate, capitalizeWords) in src/transformer.ts so all tests pass. The functions must be pure and stateless — do not use global mutable state, caching, or memoization.",
+  "repoPath": "./fixtures/h7-recovery",
+  "acceptance": { "testCommand": "npx vitest run" },
+  "maxIterations": 4,
+  "semantic": { "maxRisk": "low" }
+}

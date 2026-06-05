@@ -1,0 +1,14 @@
+{
+  "id": "m5-report-error",
+  "goal": "The report renderer (src/report-renderer/) should handle missing or malformed scan results gracefully. If the scan result is null or undefined, the renderer should return a minimal error report instead of crashing. If a rule result has no 'message' field, use a default 'No details available' message. Fix the renderer and add tests for these edge cases.",
+  "repoPath": "D:/project/github_star/RepoDoctor",
+  "acceptance": {
+    "testCommand": "npx vitest --run",
+    "steps": [
+      { "id": "test", "command": "npx", "args": ["vitest", "--run"] },
+      { "id": "typecheck", "command": "npx", "args": ["tsc", "--noEmit"] }
+    ]
+  },
+  "maxIterations": 4,
+  "semantic": { "maxRisk": "low" }
+}

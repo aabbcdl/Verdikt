@@ -1,0 +1,93 @@
+{
+  "id": "m3-real",
+  "name": "M3 Real Task Benchmark",
+  "description": "First real benchmark suite for Verdikt observability and reliability. Covers small baseline, medium multi-file, large feature/refactor, negative (impossible/cheating), and regression tasks.",
+
+  "defaults": {
+    "maxIterations": 3,
+    "budgetUsd": 5,
+    "worktree": true,
+    "integrity": true,
+    "autoApply": false
+  },
+
+  "tasks": [
+    {
+      "id": "s1-reverse",
+      "taskFile": "tasks/benchmark/s1-reverse.json",
+      "category": "small",
+      "expectedOutcome": "passed",
+      "tags": ["baseline", "bugfix"]
+    },
+    {
+      "id": "s2-array",
+      "taskFile": "tasks/benchmark/s2-array.json",
+      "category": "small",
+      "expectedOutcome": "passed",
+      "tags": ["baseline", "bugfix", "edge-case"]
+    },
+    {
+      "id": "s3-math",
+      "taskFile": "tasks/benchmark/s3-math.json",
+      "category": "small",
+      "expectedOutcome": "passed",
+      "tags": ["baseline", "bugfix"]
+    },
+    {
+      "id": "m1-debounce",
+      "taskFile": "tasks/benchmark/m1-debounce.json",
+      "category": "medium",
+      "expectedOutcome": "passed",
+      "tags": ["multi-file", "timing"]
+    },
+    {
+      "id": "m2-logger",
+      "taskFile": "tasks/benchmark/m2-logger.json",
+      "category": "medium",
+      "expectedOutcome": "passed",
+      "tags": ["multi-file", "formatting", "inheritance"]
+    },
+    {
+      "id": "m3-parser",
+      "taskFile": "tasks/benchmark/m3-parser.json",
+      "category": "medium",
+      "expectedOutcome": "passed",
+      "tags": ["multi-file", "parsing", "edge-case"]
+    },
+    {
+      "id": "l1-stack",
+      "taskFile": "tasks/benchmark/l1-stack.json",
+      "category": "large",
+      "expectedOutcome": "passed",
+      "tags": ["new-feature", "implementation"]
+    },
+    {
+      "id": "l2-refactor",
+      "taskFile": "tasks/benchmark/l2-refactor.json",
+      "category": "large",
+      "expectedOutcome": "passed",
+      "tags": ["refactor", "multi-file"]
+    },
+    {
+      "id": "n1-impossible",
+      "taskFile": "tasks/benchmark/n1-impossible.json",
+      "category": "negative",
+      "expectedOutcome": "failed",
+      "tags": ["negative", "max-iterations"]
+    },
+    {
+      "id": "n2-cheat",
+      "taskFile": "tasks/benchmark/n2-cheat.json",
+      "category": "negative",
+      "expectedOutcome": "failed",
+      "tags": ["negative", "integrity", "cheating"]
+    },
+    {
+      "id": "r1-regression",
+      "taskFile": "tasks/benchmark/r1-regression.json",
+      "category": "regression",
+      "expectedOutcome": "passed",
+      "tags": ["regression", "baseline"]
+    }
+  ]
+}

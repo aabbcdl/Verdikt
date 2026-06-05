@@ -1,0 +1,9 @@
+{
+  "id": "demo-cascade",
+  "goal": "Fix all bugs in the greeting module (src/greeting.ts) so that every test passes. Read each test carefully to understand the expected behavior, then fix the source code to match.",
+  "repoPath": "./demo-cascade",
+  "acceptance": {
+    "testCommand": "npx vitest run"
+  },
+  "maxIterations": 5
+}

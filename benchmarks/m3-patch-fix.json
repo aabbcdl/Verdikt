@@ -1,0 +1,11 @@
+{
+  "id": "m3-patch-fix",
+  "name": "M3.3 Patch Fix Re-run",
+  "description": "Re-run affected tasks after fixes.",
+  "defaults": { "maxIterations": 3, "budgetUsd": 5, "worktree": true, "integrity": true, "autoApply": false },
+  "tasks": [
+    { "id": "n1-impossible", "taskFile": "tasks/benchmark/n1-impossible.json", "category": "negative", "expectedOutcome": "failed" },
+    { "id": "n2-cheat", "taskFile": "tasks/benchmark/n2-cheat.json", "category": "negative", "expectedOutcome": "failed" },
+    { "id": "l2-refactor", "taskFile": "tasks/benchmark/l2-refactor.json", "category": "large", "expectedOutcome": "passed" }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "id": "m5-repo-doctor",
+  "name": "M5 Real Project: RepoDoctor",
+  "description": "M5 evaluation on RepoDoctor — a real 3000 LOC TypeScript project with 128 tests. Tests structured judge steps, semantic gate, and recovery metrics on real code.",
+
+  "defaults": {
+    "maxIterations": 4,
+    "budgetUsd": 10,
+    "worktree": true,
+    "integrity": true,
+    "autoApply": false
+  },
+
+  "tasks": [
+    {
+      "id": "m5-scorer-fix",
+      "taskFile": "tasks/m5/m5-scorer-fix.json",
+      "category": "medium",
+      "expectedOutcome": "passed",
+      "tags": ["bugfix", "edge-case", "real-project"]
+    },
+    {
+      "id": "m5-new-rule",
+      "taskFile": "tasks/m5/m5-new-rule.json",
+      "category": "large",
+      "expectedOutcome": "passed",
+      "tags": ["new-feature", "real-project"]
+    },
+    {
+      "id": "m5-report-error",
+      "taskFile": "tasks/m5/m5-report-error.json",
+      "category": "medium",
+      "expectedOutcome": "passed",
+      "tags": ["error-handling", "real-project"]
+    }
+  ]
+}
