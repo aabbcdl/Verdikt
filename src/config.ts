@@ -14,6 +14,8 @@ export interface VerdiktConfig {
   defaultTimeoutMs: number;
   /** Default absolute timeout per Claude call in ms (never resets, hard kill) */
   defaultAbsoluteTimeoutMs: number;
+  /** Max retries for transient failures (network errors, timeouts) */
+  maxRetries: number;
   /** Directory for run artifacts */
   stateDir: string;
   /** Max concurrent iterations (MVP is always 1) */
@@ -30,6 +32,7 @@ const DEFAULTS: VerdiktConfig = {
     process.env.VERDIKT_ABSOLUTE_TIMEOUT_MS ?? "600000",
     10,
   ), // 10 min
+  maxRetries: Number.parseInt(process.env.VERDIKT_MAX_RETRIES ?? "2", 10),
   stateDir: process.env.VERDIKT_STATE_DIR ?? ".verdikt",
   concurrency: 1,
   verbose: process.env.VERDIKT_VERBOSE === "1" || process.env.VERDIKT_VERBOSE === "true",

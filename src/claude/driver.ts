@@ -28,7 +28,68 @@ export interface StreamCallbacks {
 }
 
 /**
- * Call Claude Code CLI in headless mode.
+ * Backward-compatible alias for callClaudeWithRetry.
+ * @deprecated Use callClaudeWithRetry directly for clarity.
+ */
+export const callClaude = callClaudeWithRetry;
+
+/**
+ * Exported for testing single-attempt behavior.
+ */
+export { callClaudeOnce };
+
+/**
+ * Check if a driver output indicates a transient failure worth retrying.
+ */
+function isTransientFailure(output: DriverOutput): boolean {
+  // Timeout is transient — the process may have been slow
+  if (output.timedOut) return true;
+  // Driver errors (process spawn failures) are transient
+  if (output.text.includes("[DRIVER ERROR]")) return true;
+  return false;
+}
+
+/**
+ * Call Claude Code CLI with retry logic for transient failures.
+ *
+ * Retries on timeout and driver errors with exponential backoff.
+ * Max retries is configurable via config.maxRetries (default 2).
+ */
+export async function callClaudeWithRetry(
+  input: DriverInput,
+  streamCallbacks?: StreamCallbacks,
+): Promise<DriverOutput> {
+  const config = getConfig();
+  const maxRetries = config.maxRetries;
+  let lastOutput: DriverOutput | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    // Don't use stream callbacks on retries to avoid duplicate output
+    const callbacks = attempt === 0 ? streamCallbacks : undefined;
+    const output = await callClaudeOnce(input, callbacks);
+
+    // If successful or non-transient, return immediately
+    if (!isTransientFailure(output)) {
+      return output;
+    }
+
+    lastOutput = output;
+
+    // If we have retries left, wait with exponential backoff
+    if (attempt < maxRetries) {
+      const backoffMs = Math.min(1000 * 2 ** attempt, 10000);
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+    }
+  }
+
+  // All retries exhausted — return last output
+  return (
+    lastOutput ?? { text: "[DRIVER ERROR] All retries exhausted", timedOut: false, durationMs: 0 }
+  );
+}
+
+/**
+ * Call Claude Code CLI in headless mode (single attempt).
  *
  * Returns DriverOutput on success/timeout — never throws.
  * Timeout is "idle timeout": resets every time we receive output.
@@ -37,7 +98,7 @@ export interface StreamCallbacks {
  * When streamCallbacks are provided, uses --output-format stream-json
  * for real-time progress feedback.
  */
-export async function callClaude(
+async function callClaudeOnce(
   input: DriverInput,
   streamCallbacks?: StreamCallbacks,
 ): Promise<DriverOutput> {

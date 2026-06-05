@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DriverInput } from "../types.js";
-import { callClaude } from "./driver.js";
+import { callClaudeOnce } from "./driver.js";
 
 // Mock child_process
 vi.mock("node:child_process", () => {
@@ -68,7 +68,7 @@ describe("callClaude", () => {
       },
     );
 
-    const promise = callClaude(baseInput);
+    const promise = callClaudeOnce(baseInput);
 
     // Simulate stdout with JSON
     const jsonOutput = JSON.stringify({
@@ -105,7 +105,7 @@ describe("callClaude", () => {
       },
     );
 
-    const promise = callClaude(baseInput);
+    const promise = callClaudeOnce(baseInput);
 
     // Simulate non-JSON stdout
     stdoutHandler?.(Buffer.from("This is plain text output"));
@@ -135,7 +135,7 @@ describe("callClaude", () => {
       },
     );
 
-    const promise = callClaude(baseInput);
+    const promise = callClaudeOnce(baseInput);
 
     const jsonOutput = JSON.stringify({
       type: "result",
@@ -167,7 +167,7 @@ describe("callClaude", () => {
       (_event: string, _handler: unknown) => {},
     );
 
-    const promise = callClaude(baseInput);
+    const promise = callClaudeOnce(baseInput);
 
     // Advance past idle timeout (1000ms) but not absolute (5000ms)
     await vi.advanceTimersByTimeAsync(1500);
@@ -201,7 +201,7 @@ describe("callClaude", () => {
       (_event: string, _handler: unknown) => {},
     );
 
-    const promise = callClaude(baseInput);
+    const promise = callClaudeOnce(baseInput);
 
     // Simulate continuous output that resets idle timer
     for (let i = 0; i < 10; i++) {
@@ -240,7 +240,7 @@ describe("callClaude", () => {
       (_event: string, _handler: unknown) => {},
     );
 
-    const promise = callClaude(baseInput);
+    const promise = callClaudeOnce(baseInput);
     closeHandler?.(0);
     await promise;
 
@@ -265,7 +265,7 @@ describe("callClaude", () => {
       (_event: string, _handler: unknown) => {},
     );
 
-    const promise = callClaude(baseInput);
+    const promise = callClaudeOnce(baseInput);
     errorHandler?.(new Error("ENOENT"));
 
     const result = await promise;
