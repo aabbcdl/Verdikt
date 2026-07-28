@@ -781,6 +781,99 @@ describe("App server", () => {
     expect(summary.runId).toBe(runId);
   });
 
+  it("serves the canonical verdict and rejects unsupported versions", async () => {
+    const runId = "run-verdict-001";
+    const runDir = join(stateDir, runId);
+    await mkdir(runDir, { recursive: true });
+    await writeFile(
+      join(runDir, "summary.json"),
+      JSON.stringify({ runId, stopReason: "passed" }),
+      "utf-8",
+    );
+    await writeFile(
+      join(runDir, "verdict.json"),
+      JSON.stringify({
+        version: 1,
+        run: {
+          runId,
+          stopReason: "passed",
+          totalDurationMs: 10,
+          usageStatus: "complete",
+        },
+        status: "pass",
+        summary: {
+          title: "可以接受这项修改",
+          explanation: "全部必需条件均已通过。",
+          requiredPassed: 1,
+          requiredTotal: 1,
+        },
+        recommendation: "accept_change",
+        scope: {
+          status: "skipped",
+          expectedPaths: [],
+          changedFiles: [],
+          outOfScopeFiles: [],
+          filesChanged: 0,
+        },
+        criteria: [],
+        integrity: {
+          status: "pass",
+          testsModified: false,
+          acceptanceWeakened: false,
+          evidenceRecorded: true,
+          criticalCount: 0,
+          warningCount: 0,
+          findings: [],
+        },
+        evidence: [],
+        findings: [],
+        provenance: {},
+        createdAt: "2026-07-28T12:00:00.000Z",
+      }),
+      "utf-8",
+    );
+
+    const app = await startAppServer({ port: 0, logStartup: false });
+    servers.push(trackApp(app));
+
+    const response = await fetch(`${app.url}/api/verdict/${runId}`);
+    const body = (await response.json()) as { version?: number; status?: string };
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ version: 1, status: "pass" });
+
+    await writeFile(
+      join(runDir, "verdict.json"),
+      JSON.stringify({ version: 2, status: "pass" }),
+      "utf-8",
+    );
+    const unsupported = await fetch(`${app.url}/api/verdict/${runId}`);
+    const unsupportedBody = (await unsupported.json()) as { error?: string };
+
+    expect(unsupported.status).toBe(422);
+    expect(unsupportedBody.error).toContain("Unsupported verdict version");
+  });
+
+  it("marks saved runs without verdict.json as legacy", async () => {
+    const runId = "run-legacy-verdict";
+    const runDir = join(stateDir, runId);
+    await mkdir(runDir, { recursive: true });
+    await writeFile(
+      join(runDir, "summary.json"),
+      JSON.stringify({ runId, stopReason: "passed" }),
+      "utf-8",
+    );
+
+    const app = await startAppServer({ port: 0, logStartup: false });
+    servers.push(trackApp(app));
+
+    const response = await fetch(`${app.url}/api/verdict/${runId}`);
+    const body = (await response.json()) as { legacy?: boolean };
+
+    expect(response.status).toBe(404);
+    expect(body.legacy).toBe(true);
+  });
+
   it("serves provider failures as actionable resumable states", async () => {
     const runId = "run-provider-error-001";
     const runDir = join(stateDir, runId);

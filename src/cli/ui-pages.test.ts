@@ -70,6 +70,159 @@ describe("2026-07-26 UX fixes", () => {
 });
 
 describe("static report pages", () => {
+  it("renders a verdict-first PASS without habitual human-review language", async () => {
+    const { context, elements } = await loadUiScript("index.html");
+
+    context.renderVerdict?.({
+      version: 1,
+      run: {
+        runId: "run-pass",
+        taskId: "task-pass",
+        goal: "Fix rate limiting",
+        stopReason: "passed",
+        applyStatus: "pending",
+        totalDurationMs: 1000,
+        totalCostUsd: 0.1,
+        usageStatus: "complete",
+      },
+      status: "pass",
+      summary: {
+        title: "可以接受这项修改",
+        explanation: "所有 2 项必需验收条件均已通过，未发现阻断性问题。",
+        requiredPassed: 2,
+        requiredTotal: 2,
+      },
+      recommendation: "accept_change",
+      scope: {
+        status: "skipped",
+        expectedPaths: [],
+        changedFiles: ["src/auth.ts"],
+        outOfScopeFiles: [],
+        filesChanged: 1,
+      },
+      criteria: [
+        {
+          id: "test",
+          name: "Tests",
+          required: true,
+          status: "pass",
+          summary: "531 passed · exit 0",
+          evidenceIds: ["command:test"],
+        },
+        {
+          id: "build",
+          name: "Build",
+          required: true,
+          status: "pass",
+          summary: "pnpm build · exit 0",
+          evidenceIds: ["command:build"],
+        },
+      ],
+      integrity: {
+        status: "pass",
+        testsModified: false,
+        acceptanceWeakened: false,
+        evidenceRecorded: true,
+        criticalCount: 0,
+        warningCount: 0,
+        findings: [],
+      },
+      evidence: [
+        {
+          id: "command:test",
+          kind: "test",
+          source: "verified_execution",
+          assurance: "verified",
+          title: "Tests",
+          summary: "531 passed",
+        },
+        {
+          id: "command:build",
+          kind: "build",
+          source: "verified_execution",
+          assurance: "verified",
+          title: "Build",
+          summary: "Build complete",
+        },
+      ],
+      findings: [],
+      provenance: {},
+      createdAt: "2026-07-28T12:00:00.000Z",
+    });
+
+    expect(elements["verdict-status"].textContent).toBe("PASS");
+    expect(elements["verdict-title"].textContent).toContain("可以接受");
+    expect(elements["verdict-summary"].textContent).not.toContain("人工");
+    expect(elements["criteria-list"].innerHTML).toContain("真实执行");
+    expect(elements["criteria-list"].innerHTML).toContain("531 passed");
+    expect(elements["audit-panel"].hidden).toBe(true);
+  });
+
+  it("never labels a human judgment requirement as PASS", async () => {
+    const { context, elements } = await loadUiScript("index.html");
+
+    context.renderVerdict?.({
+      version: 1,
+      run: {
+        runId: "run-review",
+        stopReason: "approval_required",
+        totalDurationMs: 1000,
+        usageStatus: "complete",
+      },
+      status: "needs_review",
+      summary: {
+        title: "需要人工判断",
+        explanation: "行为验收需要用户确认。",
+        requiredPassed: 1,
+        requiredTotal: 2,
+      },
+      recommendation: "human_review",
+      scope: {
+        status: "pass",
+        expectedPaths: [],
+        changedFiles: [],
+        outOfScopeFiles: [],
+        filesChanged: 0,
+      },
+      criteria: [
+        {
+          id: "behavior",
+          name: "Behavior",
+          required: true,
+          status: "needs_review",
+          summary: "Requires human judgment",
+          evidenceIds: ["review:behavior"],
+        },
+      ],
+      integrity: {
+        status: "pass",
+        testsModified: false,
+        acceptanceWeakened: false,
+        evidenceRecorded: true,
+        criticalCount: 0,
+        warningCount: 0,
+        findings: [],
+      },
+      evidence: [
+        {
+          id: "review:behavior",
+          kind: "review",
+          source: "independent_review",
+          assurance: "attested",
+          title: "Behavior review",
+          summary: "Requires human judgment",
+        },
+      ],
+      findings: [],
+      provenance: {},
+      createdAt: "2026-07-28T12:00:00.000Z",
+    });
+
+    expect(elements["verdict-status"].textContent).toBe("NEEDS REVIEW");
+    expect(elements["verdict-status"].textContent).not.toBe("PASS");
+    expect(elements["criteria-list"].innerHTML).toContain("独立审查");
+  });
+
   it("uses the Chinese workbench language and light visual system across report pages", async () => {
     const expectations = [
       ["index.html", "Verdikt 运行报告"],
@@ -327,6 +480,7 @@ interface FakeElement {
 
 interface UiContext {
   render?: (...args: unknown[]) => void;
+  renderVerdict?: (verdict: Record<string, unknown>) => void;
 }
 
 function createUiContext(overrides: Record<string, unknown>) {

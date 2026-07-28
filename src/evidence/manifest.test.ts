@@ -27,6 +27,11 @@ describe("evidence manifest", () => {
       JSON.stringify({ stopReason: "passed" }),
       "utf-8",
     );
+    await writeFile(
+      join(runDir, "verdict.json"),
+      JSON.stringify({ version: 1, status: "pass" }),
+      "utf-8",
+    );
     await writeFile(join(runDir, "evidence", "final.patch"), "diff --git a/a b/a\n", "utf-8");
   });
 
@@ -50,6 +55,7 @@ describe("evidence manifest", () => {
         "task.json",
         "iterations.jsonl",
         "summary.json",
+        "verdict.json",
         "events.jsonl",
         "action-approvals.json",
         "notes.json",

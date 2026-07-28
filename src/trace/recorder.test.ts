@@ -127,12 +127,23 @@ describe("Trace Recorder", () => {
 
       const content = await readFile(join(runDir, "summary.json"), "utf-8");
       const summary = JSON.parse(content);
+      const verdict = JSON.parse(await readFile(join(runDir, "verdict.json"), "utf-8"));
 
       expect(summary.runId).toBe("test-run");
       expect(summary.taskId).toBe("my-task");
       expect(summary.stopReason).toBe("passed");
       expect(summary.totalIterations).toBe(1);
       expect(summary.totalCostUsd).toBe(0.5);
+      expect(verdict).toMatchObject({
+        version: 1,
+        status: "pass",
+        recommendation: "accept_change",
+        run: {
+          runId: "test-run",
+          taskId: "my-task",
+          stopReason: "passed",
+        },
+      });
     });
 
     it("reads the legacy normalized task file when task.json is absent", async () => {

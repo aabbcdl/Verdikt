@@ -28,6 +28,11 @@ describe("View server", () => {
     const runDir = join(stateDir, runId);
     await mkdir(runDir, { recursive: true });
     await writeFile(join(runDir, "summary.json"), JSON.stringify({ runId }), "utf-8");
+    await writeFile(
+      join(runDir, "verdict.json"),
+      JSON.stringify({ version: 1, run: { runId }, status: "pass" }),
+      "utf-8",
+    );
     await writeFile(join(runDir, "iterations.jsonl"), "", "utf-8");
 
     const server = await startViewServer({ id: runId, port: 0 });
@@ -37,12 +42,14 @@ describe("View server", () => {
     const pageHtml = await pageResponse.text();
     const dataResponse = await fetch(`${server.url}/data/summary.json`);
     const data = (await dataResponse.json()) as { runId: string };
+    const verdictResponse = await fetch(`${server.url}/data/verdict.json`);
 
     expect(server.host).toBe("127.0.0.1");
     expect(pageResponse.status).toBe(200);
     expect(pageHtml).toContain("'/data'");
     expect(dataResponse.status).toBe(200);
     expect(data.runId).toBe(runId);
+    expect(verdictResponse.status).toBe(200);
   });
 
   it("serves favicon requests without console-noisy 404s", async () => {
