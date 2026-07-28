@@ -1,0 +1,53 @@
+{
+  "id": "fix-sum",
+  "goal": "Fix the sum function to correctly add numbers instead of subtracting",
+  "repoPath": ".",
+  "acceptance": {
+    "steps": [
+      {
+        "id": "test",
+        "command": "npx",
+        "args": ["vitest", "run"]
+      }
+    ]
+  },
+  "maxIterations": 3,
+  "maxBudgetUsd": 3,
+  "stages": [
+    {
+      "id": "diagnose",
+      "title": "Diagnose",
+      "goal": "Confirm the failing test and root cause",
+      "maxIterations": 2
+    },
+    {
+      "id": "fix",
+      "title": "Fix",
+      "goal": "Implement the smallest correct fix",
+      "maxIterations": 2
+    },
+    {
+      "id": "verify",
+      "title": "Verify",
+      "goal": "Run the full acceptance check and review the patch",
+      "acceptance": {
+        "steps": [
+          {
+            "id": "test",
+            "command": "npx",
+            "args": ["vitest", "run"]
+          }
+        ]
+      },
+      "maxIterations": 2
+    }
+  ],
+  "execution": {
+    "softTimeoutMs": 120000,
+    "idleTimeoutMs": 300000,
+    "hardTimeoutMs": 600000
+  },
+  "riskPolicy": {
+    "mode": "confirm"
+  }
+}

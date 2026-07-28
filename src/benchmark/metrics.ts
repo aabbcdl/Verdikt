@@ -5,6 +5,7 @@
  * All metrics are derived from benchmark task results, not raw logs.
  */
 
+import { coerceUsageSummary } from "../usage.js";
 import type { BenchmarkMetrics, BenchmarkTaskResult, BenchmarkTotals } from "./types.js";
 
 /**
@@ -59,11 +60,29 @@ export function computeMetrics(tasks: BenchmarkTaskResult[]): BenchmarkMetrics {
       ? completedTasks.reduce((sum, t) => sum + t.iterations, 0) / completedTasks.length
       : 0;
 
-  // Average cost
+  // Average cost is calculated only from samples with a reported value.
+  const costSamples = completedTasks.map((task) => ({
+    task,
+    usage: coerceUsageSummary(
+      task.usage ?? { status: task.usageStatus, costUsd: task.costUsd },
+      task.usageStatus === "unknown" ? undefined : task.costUsd,
+    ),
+  }));
+  const knownCostSamples = costSamples.filter(
+    ({ usage }) => usage.status !== "unknown" && usage.costUsd !== undefined,
+  );
+  const partialCostSamples = costSamples.filter(({ usage }) => usage.status === "partial").length;
+  const unknownCostSamples = costSamples.filter(({ usage }) => usage.status === "unknown").length;
   const avgCostUsd =
-    completedTasks.length > 0
-      ? completedTasks.reduce((sum, t) => sum + t.costUsd, 0) / completedTasks.length
+    knownCostSamples.length > 0
+      ? knownCostSamples.reduce((sum, { task }) => sum + task.costUsd, 0) / knownCostSamples.length
       : 0;
+  const avgCostStatus =
+    knownCostSamples.length === 0
+      ? "unknown"
+      : partialCostSamples > 0 || unknownCostSamples > 0
+        ? "partial"
+        : "complete";
 
   // Average duration
   const avgDurationMs =
@@ -120,11 +139,41 @@ export function computeMetrics(tasks: BenchmarkTaskResult[]): BenchmarkMetrics {
         tasksWithChanges.length
       : 0;
 
+  const measuredTasks = completedTasks.filter((task) => typeof task.passRate === "number");
+  const attemptSuccessRate =
+    measuredTasks.length > 0
+      ? measuredTasks.reduce((sum, task) => sum + (task.passRate ?? 0), 0) / measuredTasks.length
+      : successRate;
+  const flakyTaskRate =
+    completedTasks.length > 0
+      ? completedTasks.filter((task) => task.flaky === true).length / completedTasks.length
+      : 0;
+  const medianDurations = completedTasks
+    .map((task) => task.medianDurationMs)
+    .filter((value): value is number => typeof value === "number")
+    .sort((a, b) => a - b);
+  const medianDurationMs =
+    medianDurations.length > 0
+      ? (medianDurations[Math.floor((medianDurations.length - 1) / 2)] +
+          medianDurations[Math.ceil((medianDurations.length - 1) / 2)]) /
+        2
+      : avgDurationMs;
+  const worstDurationMs = Math.max(
+    0,
+    ...completedTasks.map((task) => task.worstDurationMs ?? task.durationMs),
+  );
+
   return {
     successRate: round(successRate),
     expectedOutcomeRate: round(expectedOutcomeRate),
     avgIterations: round(avgIterations),
     avgCostUsd: round(avgCostUsd, 4),
+    costSampleCount: knownCostSamples.length,
+    partialCostSamples,
+    unknownCostSamples,
+    costCoverageRate:
+      completedTasks.length > 0 ? round(knownCostSamples.length / completedTasks.length, 4) : 0,
+    avgCostStatus,
     avgDurationMs: round(avgDurationMs),
     firstTryPassRate: round(firstTryPassRate),
     multiRoundRecoveryRate: round(multiRoundRecoveryRate),
@@ -145,6 +194,10 @@ export function computeMetrics(tasks: BenchmarkTaskResult[]): BenchmarkMetrics {
     integrityWarningCount,
     avgFilesChanged: round(avgFilesChanged),
     avgPatchSize: round(avgPatchSize),
+    attemptSuccessRate: round(attemptSuccessRate, 4),
+    flakyTaskRate: round(flakyTaskRate, 4),
+    medianDurationMs: round(medianDurationMs),
+    worstDurationMs: round(worstDurationMs),
   };
 }
 

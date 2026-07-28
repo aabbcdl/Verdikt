@@ -3,12 +3,20 @@
  */
 
 import { resolve } from "node:path";
+import { hasFlag, parseArgs } from "./parseArgs.js";
 
 export async function handleInit(args: string[]): Promise<void> {
+  const parsed = parseArgs(args, {
+    boolean: ["suite"],
+    positional: { max: 2, names: ["id", "repo-path"] },
+  });
   const { writeFile: wf } = await import("node:fs/promises");
 
   // init --suite creates a benchmark suite template
-  if (args.includes("--suite")) {
+  if (hasFlag(parsed, "suite")) {
+    if (parsed.positional.length > 0) {
+      throw new Error("verdikt init --suite does not accept positional arguments");
+    }
     const suite = {
       id: "my-benchmark",
       name: "My Benchmark Suite",
@@ -31,8 +39,8 @@ export async function handleInit(args: string[]): Promise<void> {
     return;
   }
 
-  const id = args[0] || "my-task";
-  const repoPath = args[1] || ".";
+  const id = parsed.positional[0] || "my-task";
+  const repoPath = parsed.positional[1] || ".";
 
   const task = {
     id,

@@ -7,7 +7,9 @@
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Other"],
+  "categories": [
+    "Other"
+  ],
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
@@ -63,7 +65,17 @@
         "title": "Open Dashboard",
         "category": "Verdikt"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Verdikt",
+      "properties": {
+        "verdikt.serverUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:3849",
+          "description": "Local Verdikt app service used by the sidebar and run actions."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

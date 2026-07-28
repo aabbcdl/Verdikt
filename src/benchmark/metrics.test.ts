@@ -111,6 +111,21 @@ describe("computeMetrics", () => {
     expect(metrics.avgIterations).toBe(2);
   });
 
+  it("calculates average cost only from reported samples", () => {
+    const metrics = computeMetrics([
+      makeTaskResult({ costUsd: 0.2, usageStatus: "complete" }),
+      makeTaskResult({ costUsd: 0.4, usageStatus: "partial" }),
+      makeTaskResult({ costUsd: 0, usageStatus: "unknown" }),
+    ]);
+
+    expect(metrics.avgCostUsd).toBe(0.3);
+    expect(metrics.costSampleCount).toBe(2);
+    expect(metrics.partialCostSamples).toBe(1);
+    expect(metrics.unknownCostSamples).toBe(1);
+    expect(metrics.costCoverageRate).toBeCloseTo(2 / 3, 4);
+    expect(metrics.avgCostStatus).toBe("partial");
+  });
+
   it("calculates first try pass rate", () => {
     const tasks = [
       makeTaskResult({ actualStatus: "passed", iterations: 1 }),
@@ -161,5 +176,71 @@ describe("computeMetrics", () => {
     const metrics = computeMetrics(tasks);
     // successRate = 1 passed / 1 valid (excluding error) = 1.0
     expect(metrics.successRate).toBe(1);
+  });
+
+  it("reports attempt-level success, flakiness, and duration distribution", () => {
+    const tasks = [
+      makeTaskResult({
+        passRate: 2 / 3,
+        flaky: true,
+        medianDurationMs: 100,
+        worstDurationMs: 300,
+        attempts: [
+          {
+            attempt: 1,
+            runId: "a",
+            summaryPath: null,
+            actualStatus: "passed",
+            matchedExpectation: true,
+            iterations: 1,
+            costUsd: 0,
+            durationMs: 100,
+            stopReason: "passed",
+            filesChanged: 1,
+            linesAdded: 1,
+            linesDeleted: 0,
+            integrityStatus: "ok",
+          },
+          {
+            attempt: 2,
+            runId: "b",
+            summaryPath: null,
+            actualStatus: "failed",
+            matchedExpectation: false,
+            iterations: 1,
+            costUsd: 0,
+            durationMs: 300,
+            stopReason: "max_iterations",
+            filesChanged: 1,
+            linesAdded: 1,
+            linesDeleted: 0,
+            integrityStatus: "ok",
+          },
+          {
+            attempt: 3,
+            runId: "c",
+            summaryPath: null,
+            actualStatus: "passed",
+            matchedExpectation: true,
+            iterations: 1,
+            costUsd: 0,
+            durationMs: 100,
+            stopReason: "passed",
+            filesChanged: 1,
+            linesAdded: 1,
+            linesDeleted: 0,
+            integrityStatus: "ok",
+          },
+        ],
+      }),
+      makeTaskResult({ passRate: 1, flaky: false, medianDurationMs: 50, worstDurationMs: 50 }),
+    ];
+
+    const metrics = computeMetrics(tasks);
+
+    expect(metrics.attemptSuccessRate).toBeCloseTo(5 / 6, 4);
+    expect(metrics.flakyTaskRate).toBe(0.5);
+    expect(metrics.medianDurationMs).toBe(75);
+    expect(metrics.worstDurationMs).toBe(300);
   });
 });

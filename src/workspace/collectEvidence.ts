@@ -5,15 +5,15 @@
  * MVP: uses `git diff --name-only` to detect changes.
  */
 
-import { type ExecException, exec } from "node:child_process";
+import { execFile } from "node:child_process";
 
 /**
  * Collect list of files changed since the last commit (unstaged + staged + untracked).
  */
 export async function collectEvidence(repoPath: string): Promise<string[]> {
   const [modified, untracked] = await Promise.all([
-    execAsync("git diff --name-only HEAD", repoPath),
-    execAsync("git ls-files --others --exclude-standard", repoPath),
+    git(repoPath, ["diff", "--name-only", "HEAD"]),
+    git(repoPath, ["ls-files", "--others", "--exclude-standard"]),
   ]);
 
   const files = [...modified.split("\n").filter(Boolean), ...untracked.split("\n").filter(Boolean)];
@@ -26,15 +26,22 @@ export async function collectEvidence(repoPath: string): Promise<string[]> {
  * Collect the full diff for logging.
  */
 export async function collectDiff(repoPath: string): Promise<string> {
-  return execAsync("git diff HEAD", repoPath);
+  return git(repoPath, ["diff", "HEAD"]);
 }
 
-function execAsync(command: string, cwd: string): Promise<string> {
-  return new Promise<string>((resolve) => {
-    exec(
-      command,
-      { cwd, encoding: "utf-8", shell: process.platform === "win32" ? "powershell" : undefined },
-      (_err: ExecException | null, stdout: string) => resolve(stdout ?? ""),
+function git(cwd: string, args: string[]): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    execFile(
+      "git",
+      args,
+      { cwd, encoding: "utf-8", timeout: 120_000, maxBuffer: 10 * 1024 * 1024 },
+      (err, stdout, stderr) => {
+        if (err) {
+          reject(new Error(`git ${args.join(" ")} failed:\n${stderr || err.message}`));
+          return;
+        }
+        resolve(stdout ?? "");
+      },
     );
   });
 }

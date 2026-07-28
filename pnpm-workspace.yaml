@@ -1,3 +1,7 @@
+packages:
+  - .
+  - apps/vscode
+
 allowBuilds:
   '@biomejs/biome': true
   esbuild: true

@@ -1,206 +1,580 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Verdikt — Run Report</title>
+<title>Verdikt 运行报告</title>
 <style>
   :root {
-    --bg: #0d1117; --surface: #161b22; --border: #30363d;
-    --text: #e6edf3; --text-dim: #8b949e; --text-bright: #ffffff;
-    --green: #3fb950; --red: #f85149; --yellow: #d29922; --blue: #58a6ff;
-    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-    --mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    --bg: #f4f7fb;
+    --surface: #ffffff;
+    --surface-2: #f7f9fc;
+    --border: #dce3ec;
+    --text: #172033;
+    --text-dim: #647086;
+    --text-bright: #101828;
+    --green: #0b6f44;
+    --red: #b42318;
+    --yellow: #8a4f0f;
+    --blue: #246bfd;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: "SF Mono", "Cascadia Code", Consolas, monospace;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.6; padding: 2rem; max-width: 1100px; margin: 0 auto; }
-  h1 { font-size: 1.5rem; color: var(--text-bright); margin-bottom: 0.5rem; }
-  h2 { font-size: 1.1rem; color: var(--text-bright); margin: 1.5rem 0 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
-  .subtitle { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 1.5rem; }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; }
-  .stat { }
-  .stat-label { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
-  .stat-value { font-size: 1.25rem; font-weight: 600; color: var(--text-bright); }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    line-height: 1.55;
+  }
+  .app {
+    width: min(980px, calc(100vw - 32px));
+    margin: 0 auto;
+    padding: 24px 0 56px;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .brand-mark {
+    display: grid;
+    place-items: center;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: var(--blue);
+    color: #ffffff;
+    font-weight: 800;
+  }
+  h1, h2, h3, p { margin-top: 0; }
+  h1 {
+    margin-bottom: 4px;
+    color: var(--text-bright);
+    font-size: 23px;
+    line-height: 1.2;
+  }
+  h2 {
+    margin: 0 0 14px;
+    color: var(--text-bright);
+    font-size: 18px;
+  }
+  .subtitle {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+  .panel {
+    margin-bottom: 14px;
+    padding: 22px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: 0 8px 28px rgba(30, 50, 80, 0.06);
+  }
+  .panel-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+  .panel-heading h2 { margin-bottom: 3px; }
+  .panel-heading p { margin: 0; color: var(--text-dim); font-size: 13px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 9px;
+  }
+  .stat {
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-2);
+  }
+  .stat-label {
+    margin-bottom: 5px;
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+  .stat-value {
+    color: var(--text-bright);
+    font-size: 17px;
+    font-weight: 750;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
   .status-passed { color: var(--green); }
   .status-failed { color: var(--red); }
   .status-warning { color: var(--yellow); }
-  .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
-  .badge-ok { background: rgba(63,185,80,0.15); color: var(--green); }
-  .badge-fail { background: rgba(248,81,73,0.15); color: var(--red); }
-  .badge-warn { background: rgba(210,153,34,0.15); color: var(--yellow); }
-  .badge-pending { background: rgba(88,166,255,0.15); color: var(--blue); }
-  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
-  th { color: var(--text-dim); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; }
-  .file-list { font-family: var(--mono); font-size: 0.8rem; color: var(--text-dim); }
-  .timeline { position: relative; padding-left: 1.5rem; }
-  .timeline::before { content: ''; position: absolute; left: 0.35rem; top: 0; bottom: 0; width: 2px; background: var(--border); }
-  .timeline-item { position: relative; margin-bottom: 1.25rem; }
-  .timeline-item::before { content: ''; position: absolute; left: -1.25rem; top: 0.45rem; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--border); background: var(--bg); }
-  .timeline-item.passed::before { border-color: var(--green); background: var(--green); }
-  .timeline-item.failed::before { border-color: var(--red); background: var(--red); }
-  .timeline-header { font-weight: 600; color: var(--text-bright); font-size: 0.9rem; }
-  .timeline-meta { font-size: 0.8rem; color: var(--text-dim); }
-  .feedback { background: rgba(88,166,255,0.08); border-left: 3px solid var(--blue); padding: 0.5rem 0.75rem; margin-top: 0.5rem; font-size: 0.85rem; border-radius: 0 4px 4px 0; }
-  .actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
-  .btn { padding: 0.5rem 1rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font-size: 0.85rem; }
-  .btn:hover { border-color: var(--blue); }
-  .btn-primary { background: rgba(88,166,255,0.15); border-color: var(--blue); color: var(--blue); }
-  pre { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 0.75rem; overflow-x: auto; font-family: var(--mono); font-size: 0.8rem; color: var(--text-dim); white-space: pre-wrap; word-break: break-word; }
-  .empty { color: var(--text-dim); font-style: italic; padding: 2rem; text-align: center; }
-  .safety-row { display: flex; gap: 1.5rem; flex-wrap: wrap; }
-  .safety-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .badge-ok { background: #e8f6ef; color: var(--green); }
+  .badge-fail { background: #fff0ef; color: var(--red); }
+  .badge-warning { background: #fff7e8; color: var(--yellow); }
+  .badge-pending { background: #edf4ff; color: var(--blue); }
+  .safety-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 9px;
+  }
+  .safety-item {
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-2);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+  .safety-item span {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+  .file-list {
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+  .file-list + .file-list { margin-top: 5px; }
+  .timeline {
+    display: grid;
+    gap: 10px;
+  }
+  .timeline-item {
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+  }
+  .timeline-item.passed { border-color: #b8e2cb; }
+  .timeline-item.failed { border-color: #f1c1bd; }
+  .timeline-header {
+    color: var(--text-bright);
+    font-size: 14px;
+    font-weight: 750;
+  }
+  .identifier { color: var(--text-dim); font-family: var(--mono); font-size: 11px; font-weight: 500; }
+  .timeline-meta {
+    margin-top: 4px;
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+  .feedback {
+    margin-top: 9px;
+    padding: 10px 12px;
+    border: 1px solid #c8d7f5;
+    border-radius: 9px;
+    background: #f4f8ff;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+  .feedback.problem {
+    border-color: #f1c1bd;
+    background: #fff5f4;
+  }
+  .agent-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+    margin-top: 10px;
+  }
+  .agent-box {
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-2);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+  .agent-box strong {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--text-bright);
+  }
+  .empty {
+    padding: 24px;
+    color: var(--text-dim);
+    text-align: center;
+  }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+  }
+  th { color: var(--text-dim); font-size: 12px; font-weight: 650; }
+  tr:last-child td { border-bottom: 0; }
+  .patch-note {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-2);
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+  .review-report { display: grid; gap: 10px; }
+  .review-group { border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+  .review-group > strong { color: var(--text-bright); }
+  .review-finding { padding: 12px 0; border-top: 1px solid var(--border); }
+  .review-finding:first-of-type { border-top: 0; }
+  .review-finding p { margin: 6px 0; }
+  .review-hint { color: var(--text-dim); font-size: 12px; overflow-wrap: anywhere; }
+  .severity {
+    display: inline-block;
+    padding: 3px 7px;
+    margin-right: 7px;
+    border-radius: 999px;
+    background: #eef2f8;
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .severity-critical, .severity-high { background: #fff0ef; color: #b83232; }
+  .severity-medium { background: #fff7e8; color: #9b6515; }
+  .severity-low { background: #edf4ff; color: #245fc2; }
+  @media (max-width: 760px) {
+    .app { width: min(100% - 20px, 980px); padding-top: 12px; }
+    .panel { padding: 17px; }
+    .grid, .safety-grid { grid-template-columns: 1fr 1fr; }
+    .agent-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 460px) {
+    .brand-mark { display: none; }
+    h1 { font-size: 20px; }
+    .grid, .safety-grid { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
+<main class="app">
+  <header class="topbar">
+    <div class="brand-mark" aria-hidden="true">V</div>
+    <div>
+      <h1>Verdikt 运行报告</h1>
+      <p class="subtitle" id="run-id" role="status" aria-live="polite">正在读取运行记录...</p>
+    </div>
+  </header>
 
-<h1>Verdikt Run Report</h1>
-<p class="subtitle" id="run-id">Loading...</p>
+  <section class="panel" aria-labelledby="overview-title">
+    <div class="panel-heading"><div><h2 id="overview-title">结果概览</h2><p>这次运行的结论、花费和补丁状态。</p></div></div>
+    <div class="grid" id="status-grid"></div>
+  </section>
 
-<div class="card">
-  <div class="grid" id="status-grid"></div>
-</div>
+  <section class="panel" id="review-panel" aria-labelledby="review-title" hidden>
+    <div class="panel-heading"><div><h2 id="review-title">审查报告</h2><p>只读审查的发现，按严重程度排列。</p></div></div>
+    <div class="review-report" id="review-report"></div>
+  </section>
 
-<h2>Safety</h2>
-<div class="card">
-  <div class="safety-row" id="safety-info"></div>
-</div>
+  <section class="panel" id="safety-panel" aria-labelledby="safety-title">
+    <h2 id="safety-title">安全与完整性</h2>
+    <div class="safety-grid" id="safety-info"></div>
+  </section>
 
-<h2>Patch</h2>
-<div class="card" id="patch-info"></div>
+  <section class="panel" id="patch-panel" aria-labelledby="patch-title">
+    <h2 id="patch-title">补丁</h2>
+    <div id="patch-info"></div>
+  </section>
 
-<h2>Iterations</h2>
-<div id="iterations"></div>
+  <section class="panel" aria-labelledby="iterations-title">
+    <h2 id="iterations-title">轮次详情</h2>
+    <div id="iterations"></div>
+  </section>
 
-<h2>Evidence</h2>
-<div class="card" id="evidence"></div>
+  <section class="panel" aria-labelledby="evidence-title">
+    <h2 id="evidence-title">证据文件</h2>
+    <div class="table-wrap" id="evidence"></div>
+  </section>
+</main>
 
 <script>
-// Load summary.json from the same directory or a specified path
 async function loadRun() {
-  // Try to get runDir from URL params
   const params = new URLSearchParams(window.location.search);
   let basePath = params.get('dir') || '';
 
-  // If no dir specified, show a file picker prompt
   if (!basePath) {
-    document.getElementById('run-id').textContent = 'Add ?dir=<path-to-run-directory> to the URL';
-    document.getElementById('status-grid').innerHTML = '<div class="empty">No run directory specified. Use: ?dir=.verdikt/run-xxx</div>';
+    document.getElementById('run-id').textContent = '请在地址中提供 ?dir=<运行目录>';
+    document.getElementById('status-grid').innerHTML = '<div class="empty">没有指定运行目录，例如：?dir=.verdikt/run-xxx</div>';
     return;
   }
 
-  // Normalize path separators
   basePath = basePath.replace(/\\/g, '/');
 
   try {
     const summaryRes = await fetch(`${basePath}/summary.json`);
-    if (!summaryRes.ok) throw new Error(`Could not load ${basePath}/summary.json`);
+    if (!summaryRes.ok) throw new Error(`无法读取 ${basePath}/summary.json`);
     const summary = await summaryRes.json();
 
     let iterations = [];
+    let iterationsAvailable = false;
     try {
       const iterRes = await fetch(`${basePath}/iterations.jsonl`);
+      iterationsAvailable = iterRes.ok;
       if (iterRes.ok) {
         const text = await iterRes.text();
-        iterations = text.trim().split('\n').filter(Boolean).map(line => {
+        iterations = text.trim().split('\n').filter(Boolean).map((line) => {
           try { return JSON.parse(line); } catch { return null; }
         }).filter(Boolean);
       }
-    } catch {}
+    } catch {
+      iterationsAvailable = false;
+    }
 
-    render(summary, iterations, basePath);
+    render(summary, iterations, basePath, { iterationsAvailable });
   } catch (err) {
-    document.getElementById('run-id').textContent = `Error: ${err.message}`;
+    document.getElementById('run-id').textContent = `读取失败：${safeText(err && err.message, '无法读取运行记录')}`;
   }
 }
 
-function render(summary, iterations, basePath) {
-  // Header
-  const statusClass = summary.status === 'passed' ? 'status-passed' : 'status-failed';
+function render(summary, iterations, basePath, options = {}) {
+  const status = safeText(summary.status || summary.stopReason, 'unknown');
+  const reviewOnly = summary.reviewOnly === true || status === 'review_completed' || status === 'review_incomplete';
+  const passed = status === 'passed';
+  const statusClass = passed || status === 'review_completed'
+    ? 'status-passed'
+    : isWarningStatus(status)
+      ? 'status-warning'
+      : 'status-failed';
+  const savedIterations = Array.isArray(summary.iterations) && summary.iterations.length > 0
+    ? summary.iterations
+    : (Array.isArray(iterations) ? iterations : []);
+  const partialIteration = summary.partialIteration && typeof summary.partialIteration === 'object'
+    ? summary.partialIteration
+    : null;
+  const runIterations = partialIteration && !savedIterations.some((item) => item && item.index === partialIteration.index)
+    ? [...savedIterations, partialIteration]
+    : savedIterations;
+
   document.getElementById('run-id').innerHTML =
-    `<span class="${statusClass}">${summary.runId || 'unknown'}</span> · ${summary.taskId || ''} · ${summary.timestamp || ''}`;
+    `<span class="${statusClass}">${escapeHtml(summary.runId, 'unknown')}</span> · ${escapeHtml(summary.taskId, '')} · ${escapeHtml(formatDate(summary.timestamp), '')}`;
 
-  // Status grid
-  const grid = document.getElementById('status-grid');
-  const iterCount = summary.iterations?.length || 0;
-  const statusIcon = summary.status === 'passed' ? '✅' : '❌';
-  grid.innerHTML = `
-    <div class="stat"><div class="stat-label">Status</div><div class="stat-value ${statusClass}">${statusIcon} ${summary.status || summary.stopReason}</div></div>
-    <div class="stat"><div class="stat-label">Iterations</div><div class="stat-value">${iterCount}</div></div>
-    <div class="stat"><div class="stat-label">Cost</div><div class="stat-value">$${(summary.totalCostUsd || 0).toFixed(2)}</div></div>
-    <div class="stat"><div class="stat-label">Duration</div><div class="stat-value">${formatDuration(summary.totalDurationMs)}</div></div>
-    <div class="stat"><div class="stat-label">Apply Status</div><div class="stat-value"><span class="badge badge-${applyBadge(summary.applyStatus)}">${summary.applyStatus || 'pending'}</span></div></div>
+  const report = summary.reviewReport && typeof summary.reviewReport === 'object' ? summary.reviewReport : null;
+  const findingsCount = report && Array.isArray(report.findings) ? report.findings.length : 0;
+  const lastStat = reviewOnly
+    ? `<div class="stat"><div class="stat-label">发现问题</div><div class="stat-value">${findingsCount}</div></div>`
+    : `<div class="stat"><div class="stat-label">补丁状态</div><div class="stat-value"><span class="badge badge-${applyBadge(summary.applyStatus)}">${escapeHtml(applyStatusLabel(summary.applyStatus))}</span></div></div>`;
+  document.getElementById('status-grid').innerHTML = `
+    <div class="stat"><div class="stat-label">状态</div><div class="stat-value ${statusClass}">${escapeHtml(statusLabel(status))}</div></div>
+    <div class="stat"><div class="stat-label">轮次（Iterations）</div><div class="stat-value">${runIterations.length}</div></div>
+    <div class="stat"><div class="stat-label">花费</div><div class="stat-value">${formatCost(summary, 2, 'totalCostUsd')}</div></div>
+    <div class="stat"><div class="stat-label">耗时</div><div class="stat-value">${formatDuration(summary.totalDurationMs)}</div></div>
+    ${lastStat}
   `;
 
-  // Safety
-  const safety = document.getElementById('safety-info');
-  const ws = summary.workspace;
-  const integ = summary.integrity;
-  safety.innerHTML = `
-    <div class="safety-item">${ws?.mode === 'isolated' ? '🔒' : '⚠️'} Workspace: ${ws?.mode || 'unknown'}</div>
-    <div class="safety-item">📋 Original repo clean: ${ws?.originalRepoCleanBeforeApply ? '✅' : '❌'}</div>
-    <div class="safety-item">🛡️ Integrity: <span class="badge badge-${integ?.status === 'ok' ? 'ok' : 'fail'}">${integ?.status || 'unknown'}</span></div>
-    <div class="safety-item">🔍 Anti-cheating: ${integ?.criticalCount > 0 ? `<span class="badge badge-fail">${integ.criticalCount} critical</span>` : '<span class="badge badge-ok">clean</span>'}</div>
+  if (reviewOnly) {
+    document.getElementById('safety-panel').hidden = true;
+    document.getElementById('patch-panel').hidden = true;
+    renderReviewPanel(report);
+  }
+
+  const ws = summary.workspace || {};
+  const integ = summary.integrity || {};
+  const criticalCount = safeNumber(integ.criticalCount);
+  document.getElementById('safety-info').innerHTML = `
+    <div class="safety-item"><span>工作区</span><strong>${escapeHtml(workspaceLabel(ws.mode))}</strong></div>
+    <div class="safety-item"><span>应用前原项目</span><strong>${ws.originalRepoCleanBeforeApply ? '干净' : '有未提交改动或状态未知'}</strong></div>
+    <div class="safety-item"><span>完整性</span><strong><span class="badge badge-${safeText(integ.status) === 'ok' ? 'ok' : 'fail'}">${escapeHtml(integrityLabel(integ.status))}</span></strong></div>
+    <div class="safety-item"><span>关键风险</span><strong>${criticalCount > 0 ? `<span class="badge badge-fail">${criticalCount} 项</span>` : '<span class="badge badge-ok">未发现</span>'}</strong></div>
   `;
 
-  // Patch
   const patchInfo = document.getElementById('patch-info');
   const patch = summary.patch;
   if (patch) {
-    const allFiles = [...new Set((summary.iterations || []).flatMap(it => it.patch?.filesChanged || []))];
+    const allFiles = uniqueFiles(runIterations.flatMap((item) => iterationFiles(item)));
+    const filesChanged = safeNumber(patch.filesChanged) || allFiles.length;
     patchInfo.innerHTML = `
       <div class="grid">
-        <div class="stat"><div class="stat-label">Files Changed</div><div class="stat-value">${patch.filesChanged || allFiles.length}</div></div>
-        <div class="stat"><div class="stat-label">Patch</div><div class="stat-value">${patch.finalPatchPath ? '📄 saved' : '—'}</div></div>
+        <div class="stat"><div class="stat-label">修改文件</div><div class="stat-value">${filesChanged}</div></div>
+        <div class="stat"><div class="stat-label">补丁文件</div><div class="stat-value">${safeText(patch.finalPatchPath, '') ? '已保存' : '无'}</div></div>
       </div>
-      <div class="file-list" style="margin-top:0.75rem">${allFiles.map(f => `• ${f}`).join('<br>') || 'No files changed'}</div>
+      <div style="margin-top:12px">${allFiles.length ? allFiles.map((file) => `<div class="file-list">${escapeHtml(file)}</div>`).join('') : '<div class="empty">没有记录到文件改动</div>'}</div>
     `;
   } else {
-    patchInfo.innerHTML = '<div class="empty">No patch data</div>';
+    patchInfo.innerHTML = '<div class="empty">没有补丁数据</div>';
   }
 
-  // Iterations
   const iterDiv = document.getElementById('iterations');
-  if (!summary.iterations || summary.iterations.length === 0) {
-    iterDiv.innerHTML = '<div class="empty">No iterations recorded</div>';
+  if (runIterations.length === 0) {
+    iterDiv.innerHTML = reviewOnly
+      ? '<div class="empty">只读审查，没有修改轮次。</div>'
+      : '<div class="empty">没有记录到运行轮次</div>';
   } else {
-    iterDiv.innerHTML = '<div class="timeline">' + summary.iterations.map((it, i) => {
-      const judgeClass = it.judge?.passed ? 'passed' : 'failed';
-      const verifier = it.verifier || {};
+    iterDiv.innerHTML = '<div class="timeline">' + runIterations.map((item, index) => {
+      const judgePassed = Boolean(item && item.judge && item.judge.passed);
+      const judgeClass = judgePassed ? 'passed' : 'failed';
+      const verifier = (item && (item.verifier || item.verifierVerdict)) || {};
+      const problems = Array.isArray(verifier.problems) ? verifier.problems : [];
+      const changedFiles = iterationFiles(item);
       return `
-        <div class="timeline-item ${judgeClass}">
-          <div class="timeline-header">Round ${i + 1}</div>
+        <article class="timeline-item ${judgeClass}">
+          <div class="timeline-header">第 ${index + 1} 轮 <span class="identifier">Round ${index + 1}</span></div>
           <div class="timeline-meta">
-            ${formatDuration(it.durationMs)} · $${(it.costUsd || 0).toFixed(4)} ·
-            Judge: <span class="badge badge-${it.judge?.passed ? 'ok' : 'fail'}">${it.judge?.summary || (it.judge?.passed ? 'passed' : 'failed')}</span>
-            ${it.integrity ? ` · Integrity: <span class="badge badge-${it.integrity.status === 'ok' ? 'ok' : 'fail'}">${it.integrity.status}</span>` : ''}
+            ${formatDuration(item && item.durationMs)} · ${formatCost(item, 4, 'costUsd')} ·
+            验收：<span class="badge badge-${judgePassed ? 'ok' : 'fail'}">${escapeHtml(localizeJudgeSummary(item && item.judge && item.judge.summary) || (judgePassed ? '已通过' : '未通过'), judgePassed ? '已通过' : '未通过')}</span>
+            ${item && item.integrity ? ` · 完整性：<span class="badge badge-${safeText(item.integrity.status) === 'ok' ? 'ok' : 'fail'}">${escapeHtml(integrityLabel(item.integrity.status))}</span>` : ''}
           </div>
-          ${verifier.nextInstruction ? `<div class="feedback">💡 ${escapeHtml(verifier.nextInstruction)}</div>` : ''}
-          ${verifier.problems?.length ? `<div class="feedback" style="border-left-color:var(--red)">❌ ${verifier.problems.map(escapeHtml).join('<br>')}</div>` : ''}
-          ${it.patch?.filesChanged?.length ? `<div class="file-list" style="margin-top:0.4rem">${it.patch.filesChanged.map(f => `• ${f}`).join('<br>')}</div>` : ''}
-        </div>
+          ${safeText(verifier.nextInstruction, '') ? `<div class="feedback"><strong>下一步：</strong>${escapeHtml(verifier.nextInstruction)}</div>` : ''}
+          ${problems.length ? `<div class="feedback problem"><strong>发现的问题：</strong><br>${problems.map((problem) => escapeHtml(problem)).join('<br>')}</div>` : ''}
+          <div class="agent-grid">
+            <div class="agent-box"><strong>执行结果</strong>${escapeHtml(executorText(item))}</div>
+            <div class="agent-box"><strong>审查结论</strong>${escapeHtml(verifierText(verifier, problems))}</div>
+          </div>
+          ${changedFiles.length ? `<div style="margin-top:10px">${changedFiles.map((file) => `<div class="file-list">${escapeHtml(file)}</div>`).join('')}</div>` : ''}
+        </article>
       `;
     }).join('') + '</div>';
   }
 
-  // Evidence
-  const evidence = document.getElementById('evidence');
-  evidence.innerHTML = `
+  const iterationsAvailable = options.iterationsAvailable !== false;
+  const evidenceRows = [
+    `<tr><td>summary.json</td><td class="file-list">${escapeHtml(basePath)}/summary.json</td></tr>`,
+    iterationsAvailable ? `<tr><td>iterations.jsonl</td><td class="file-list">${escapeHtml(basePath)}/iterations.jsonl</td></tr>` : '',
+    patch && safeText(patch.finalPatchPath, '') ? `<tr><td>final.patch</td><td class="file-list">${escapeHtml(patch.finalPatchPath)}</td></tr>` : '',
+  ].join('');
+  document.getElementById('evidence').innerHTML = `
     <table>
-      <tr><th>File</th><th>Path</th></tr>
-      <tr><td>summary.json</td><td class="file-list">${basePath}/summary.json</td></tr>
-      <tr><td>iterations.jsonl</td><td class="file-list">${basePath}/iterations.jsonl</td></tr>
-      ${patch?.finalPatchPath ? `<tr><td>final.patch</td><td class="file-list">${patch.finalPatchPath}</td></tr>` : ''}
+      <thead><tr><th>文件</th><th>路径</th></tr></thead>
+      <tbody>${evidenceRows}</tbody>
     </table>
+    ${patch && safeText(patch.finalPatchPath, '') ? '<div class="patch-note">可回到主工作台查看补丁内容，并决定应用或丢弃。</div>' : ''}
   `;
 }
 
+function executorText(iteration) {
+  const raw = safeText(iteration && iteration.executorOutput, '');
+  if (raw) return raw.slice(0, 600);
+  const files = iterationFiles(iteration);
+  return files.length ? `修改了 ${files.length} 个文件：${files.join(', ')}` : '摘要中没有执行输出。';
+}
+
+function verifierText(verifier, problems) {
+  if (problems.length > 0) return problems.join('\n');
+  if (safeText(verifier.nextInstruction, '')) return verifier.nextInstruction;
+  return verifier.done ? '审查已确认本轮完成。' : '摘要中没有审查文字。';
+}
+
+function uniqueFiles(files) {
+  return [...new Set(files.map((file) => safeText(file, '')).filter(Boolean))];
+}
+
+function fileList(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function iterationFiles(iteration) {
+  return fileList(iteration && iteration.patch && iteration.patch.filesChanged).length
+    ? fileList(iteration.patch.filesChanged)
+    : fileList(iteration && iteration.changedFiles);
+}
+
+function statusLabel(status) {
+  const labels = {
+    passed: '已通过',
+    cancelled: '已停止',
+    interrupted: '已中断，可继续',
+    resumable: '可继续',
+    review_completed: '审查完成',
+    review_incomplete: '审查未完成',
+    max_iterations: '达到轮数上限',
+    budget_exceeded: '预算已用完',
+    no_progress: '没有进展',
+    stage_failed: '阶段未通过',
+    approval_rejected: '确认已拒绝',
+    provider_error: '服务请求未完成',
+    error: '运行错误',
+  };
+  return labels[status] || status || '未知';
+}
+
+function localizeJudgeSummary(text) {
+  const value = safeText(text, '');
+  const match = value.match(/^(\d+)\/(\d+) required (passed|failed)$/);
+  if (!match) return value;
+  return `必需 ${match[1]}/${match[2]} ${match[3] === 'passed' ? '通过' : '未通过'}`;
+}
+
+function renderReviewPanel(report) {
+  const panel = document.getElementById('review-panel');
+  const container = document.getElementById('review-report');
+  if (!panel || !container) return;
+  panel.hidden = false;
+  const findings = report && Array.isArray(report.findings) ? report.findings : [];
+  const summaryText = safeText(report && report.summary, '');
+  if (findings.length === 0) {
+    const title = report && report.verdict === 'incomplete' ? '没有形成可用结论' : '没有发现明确问题';
+    container.innerHTML = `<div class="review-group"><strong>${title}</strong><p class="review-hint">${escapeHtml(summaryText, '')}</p></div>`;
+    return;
+  }
+  const order = ['critical', 'high', 'medium', 'low'];
+  const labels = { critical: '严重', high: '高', medium: '一般', low: '建议' };
+  const groups = order.map((severity) => {
+    const items = findings.filter((item) => item && item.severity === severity);
+    if (!items.length) return '';
+    const rows = items.map((item) => `
+      <div class="review-finding">
+        <div><span class="severity severity-${severity}">${labels[severity]}</span><strong>${escapeHtml(item.title, '')}</strong></div>
+        <p>${escapeHtml(item.detail, '')}</p>
+        ${safeText(item.file, '') ? `<div class="review-hint">${escapeHtml(item.file)}${item.line ? ':' + escapeHtml(String(item.line)) : ''}</div>` : ''}
+        <div class="review-hint">建议：${escapeHtml(item.recommendation, '')}</div>
+      </div>
+    `).join('');
+    return `<div class="review-group"><strong>${labels[severity]}问题 · ${items.length}</strong>${rows}</div>`;
+  }).join('');
+  container.innerHTML = (summaryText ? `<p class="review-hint">${escapeHtml(summaryText)}</p>` : '') + groups;
+}
+
+function isWarningStatus(status) {
+  return ['cancelled', 'interrupted', 'resumable', 'review_incomplete', 'max_iterations', 'budget_exceeded', 'no_progress'].includes(status);
+}
+
+function applyStatusLabel(status) {
+  const labels = { applied: '已应用', discarded: '已丢弃', pending: '等待决定' };
+  return labels[status] || status || '等待决定';
+}
+
+function workspaceLabel(mode) {
+  // "direct" is the actual non-isolated mode value; "in_place" never existed.
+  const labels = { isolated: '隔离副本', direct: '直接模式', review: '只读审查' };
+  return labels[mode] || mode || '未知';
+}
+
+function integrityLabel(status) {
+  const labels = { ok: '通过', failed: '未通过', unknown: '未知' };
+  return labels[status] || status || '未知';
+}
+
+function formatDate(value) {
+  const text = safeText(value, '');
+  if (!text) return '';
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? text : date.toLocaleString('zh-CN');
+}
+
 function formatDuration(ms) {
-  if (!ms) return '—';
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms/1000).toFixed(1)}s`;
-  return `${(ms/60000).toFixed(1)}m`;
+  const value = safeNumber(ms);
+  if (value <= 0) return '-';
+  if (value < 1000) return `${value}ms`;
+  if (value < 60000) return `${(value / 1000).toFixed(1)}s`;
+  return `${(value / 60000).toFixed(1)}m`;
 }
 
 function applyBadge(status) {
@@ -209,8 +583,36 @@ function applyBadge(status) {
   return 'pending';
 }
 
-function escapeHtml(str) {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function safeText(value, fallback = '-') {
+  if (typeof value === 'string' && value.length > 0) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return fallback;
+}
+
+function formatCost(value, digits = 2, field = 'totalCostUsd') {
+  const status = value && value.usage && typeof value.usage.status === 'string'
+    ? value.usage.status
+    : value && typeof value.usageStatus === 'string'
+      ? value.usageStatus
+      : value && typeof value[field] === 'number'
+        ? 'complete'
+        : 'unknown';
+  if (status === 'unknown' || !value || typeof value[field] !== 'number') return '未知';
+  const text = '$' + value[field].toFixed(digits);
+  return status === 'partial' ? text + '+' : text;
+}
+
+function safeNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function escapeHtml(value, fallback = '-') {
+  return safeText(value, fallback)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 loadRun();

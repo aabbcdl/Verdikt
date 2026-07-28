@@ -1,174 +1,505 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Verdikt — Dashboard</title>
+<title>Verdikt 运行仪表盘</title>
 <style>
   :root {
-    --bg: #0d1117; --surface: #161b22; --border: #30363d;
-    --text: #e6edf3; --text-dim: #8b949e; --text-bright: #ffffff;
-    --green: #3fb950; --red: #f85149; --yellow: #d29922; --blue: #58a6ff;
-    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-    --mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    --bg: #f4f7fb;
+    --surface: #ffffff;
+    --surface-2: #f7f9fc;
+    --border: #dce3ec;
+    --text: #172033;
+    --text-dim: #647086;
+    --text-bright: #101828;
+    --green: #0b6f44;
+    --red: #b42318;
+    --yellow: #8a4f0f;
+    --blue: #246bfd;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: "SF Mono", "Cascadia Code", Consolas, monospace;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.6; padding: 2rem; max-width: 1200px; margin: 0 auto; }
-  h1 { font-size: 1.5rem; color: var(--text-bright); margin-bottom: 0.5rem; }
-  h2 { font-size: 1.1rem; color: var(--text-bright); margin: 1.5rem 0 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
-  .subtitle { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 1.5rem; }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; }
-  .stat-label { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
-  .stat-value { font-size: 1.25rem; font-weight: 600; color: var(--text-bright); }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    line-height: 1.55;
+  }
+  .app {
+    width: min(1080px, calc(100vw - 32px));
+    margin: 0 auto;
+    padding: 24px 0 56px;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .brand-mark {
+    display: grid;
+    place-items: center;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: var(--blue);
+    color: #ffffff;
+    font-weight: 800;
+  }
+  h1, h2, p { margin-top: 0; }
+  h1 { margin-bottom: 4px; color: var(--text-bright); font-size: 23px; line-height: 1.2; }
+  h2 { margin: 0; color: var(--text-bright); font-size: 18px; }
+  .subtitle {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+  .panel {
+    margin-bottom: 14px;
+    padding: 22px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: 0 8px 28px rgba(30, 50, 80, 0.06);
+  }
+  .panel-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 9px;
+  }
+  .stat {
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-2);
+  }
+  .stat-label { margin-bottom: 5px; color: var(--text-dim); font-size: 11px; }
+  .stat-value {
+    color: var(--text-bright);
+    font-size: 19px;
+    font-weight: 750;
+    overflow-wrap: anywhere;
+  }
   .status-passed { color: var(--green); }
   .status-failed { color: var(--red); }
-  .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
-  .badge-ok { background: rgba(63,185,80,0.15); color: var(--green); }
-  .badge-fail { background: rgba(248,81,73,0.15); color: var(--red); }
-  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
-  th { color: var(--text-dim); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; }
-  tr:hover { background: rgba(88,166,255,0.05); }
-  .clickable { cursor: pointer; }
-  .chart-container { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
-  .chart-bar { display: flex; align-items: end; gap: 2px; height: 100px; padding-top: 10px; }
-  .bar { flex: 1; min-width: 8px; border-radius: 2px 2px 0 0; transition: height 0.3s; }
+  .chart-bar {
+    display: flex;
+    align-items: end;
+    gap: 4px;
+    height: 120px;
+    padding-top: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .bar {
+    flex: 1;
+    min-width: 8px;
+    border-radius: 4px 4px 0 0;
+  }
   .bar-passed { background: var(--green); }
   .bar-failed { background: var(--red); }
-  .bar-cost { background: var(--blue); }
-  .empty { color: var(--text-dim); font-style: italic; padding: 2rem; text-align: center; }
-  a { color: var(--blue); text-decoration: none; }
-  a:hover { text-decoration: underline; }
+  .bar-warning { background: var(--yellow); }
+  .toolbar {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) 190px;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  label { display: block; margin-bottom: 5px; color: var(--text-dim); font-size: 12px; font-weight: 650; }
+  input, select {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+  }
+  input:focus, select:focus, button:focus-visible, a:focus-visible {
+    outline: 3px solid rgba(36, 107, 253, 0.22);
+    outline-offset: 2px;
+    border-color: var(--blue);
+  }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+  }
+  th { color: var(--text-dim); font-size: 12px; font-weight: 650; white-space: nowrap; }
+  tbody tr:hover { background: var(--surface-2); }
+  .run-link { color: var(--blue); font-family: var(--mono); font-size: 12px; text-decoration: none; }
+  .run-link:hover { text-decoration: underline; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .badge-ok { background: #e8f6ef; color: var(--green); }
+  .badge-fail { background: #fff0ef; color: var(--red); }
+  .badge-warning { background: #fff7e8; color: var(--yellow); }
+  .badge-pending { background: #edf4ff; color: var(--blue); }
+  .empty { padding: 24px; color: var(--text-dim); text-align: center; }
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+  }
+  .page-actions { display: flex; gap: 8px; }
+  button {
+    min-height: 40px;
+    padding: 8px 13px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-weight: 650;
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--blue); color: var(--blue); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  @media (max-width: 760px) {
+    .app { width: min(100% - 20px, 1080px); padding-top: 12px; }
+    .panel { padding: 17px; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .toolbar { grid-template-columns: 1fr; }
+    #runs-table thead { display: none; }
+    #runs-table, #runs-table tbody, #runs-table tr, #runs-table td { display: block; width: 100%; }
+    #runs-table tr {
+      margin-bottom: 10px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+    }
+    #runs-table td {
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr);
+      gap: 8px;
+      padding: 5px 0;
+      border: 0;
+    }
+    #runs-table td::before { content: attr(data-label); color: var(--text-dim); font-size: 12px; }
+    #runs-table td[data-label="轮次"],
+    #runs-table td[data-label="耗时"],
+    #runs-table td[data-label="时间"] { display: none; }
+  }
+  @media (max-width: 460px) {
+    .brand-mark { display: none; }
+    h1 { font-size: 20px; }
+    .stats-grid { grid-template-columns: 1fr; }
+    .pagination { align-items: stretch; flex-direction: column; }
+    .page-actions button { flex: 1; }
+  }
 </style>
 </head>
 <body>
-  <h1>📊 Verdikt Dashboard</h1>
-  <p class="subtitle" id="subtitle">Loading...</p>
+<main class="app">
+  <header class="topbar">
+    <div class="brand-mark" aria-hidden="true">V</div>
+    <div>
+      <h1>Verdikt 运行仪表盘</h1>
+      <p class="subtitle" id="subtitle" role="status" aria-live="polite">正在读取运行记录...</p>
+    </div>
+  </header>
 
-  <div class="grid" id="stats"></div>
+  <section class="panel" aria-label="整体统计">
+    <div class="stats-grid" id="stats"></div>
+  </section>
 
-  <h2>📈 Cost Trend</h2>
-  <div class="chart-container">
-    <div class="chart-bar" id="cost-chart"></div>
-  </div>
+  <section class="panel" aria-labelledby="trend-title">
+    <div class="panel-heading"><h2 id="trend-title">最近 20 次运行花费</h2></div>
+    <div class="chart-bar" id="cost-chart" aria-label="最近运行花费趋势"></div>
+  </section>
 
-  <h2>📋 Recent Runs</h2>
-  <table id="runs-table">
-    <thead>
-      <tr>
-        <th>Run ID</th>
-        <th>Task</th>
-        <th>Status</th>
-        <th>Iterations</th>
-        <th>Cost</th>
-        <th>Duration</th>
-        <th>Time</th>
-      </tr>
-    </thead>
-    <tbody id="runs-body"></tbody>
-  </table>
+  <section class="panel" aria-labelledby="runs-title">
+    <div class="panel-heading"><h2 id="runs-title">运行记录</h2></div>
+    <div class="toolbar">
+      <div><label for="run-search">搜索任务或运行编号</label><input id="run-search" type="search" placeholder="输入任务名、运行编号或状态" oninput="resetRunPage()"></div>
+      <div><label for="run-status">状态</label><select id="run-status" onchange="resetRunPage()"><option value="all">全部状态</option><option value="passed">已通过</option><option value="failed">未通过</option><option value="resumable">可继续</option><option value="cancelled">已停止</option></select></div>
+    </div>
+    <div class="table-wrap">
+      <table id="runs-table">
+        <thead><tr><th>运行编号</th><th>任务</th><th>状态</th><th>轮次</th><th>花费</th><th>耗时</th><th>时间</th></tr></thead>
+        <tbody id="runs-body"></tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <div class="subtitle" id="run-count" role="status" aria-live="polite"></div>
+      <div class="page-actions"><button id="prev-page" type="button" onclick="changeRunPage(-1)">上一页</button><button id="next-page" type="button" onclick="changeRunPage(1)">下一页</button></div>
+    </div>
+  </section>
 
-  <h2>📊 Benchmarks</h2>
-  <table id="bench-table">
-    <thead>
-      <tr>
-        <th>Benchmark ID</th>
-        <th>Tasks</th>
-        <th>Passed</th>
-        <th>Cost</th>
-        <th>Time</th>
-      </tr>
-    </thead>
-    <tbody id="bench-body"></tbody>
-  </table>
+  <section class="panel" aria-labelledby="bench-title">
+    <div class="panel-heading"><h2 id="bench-title">Benchmark 记录</h2></div>
+    <div class="table-wrap">
+      <table id="bench-table">
+        <thead><tr><th>Benchmark 编号</th><th>任务数</th><th>符合预期</th><th>花费</th><th>耗时</th></tr></thead>
+        <tbody id="bench-body"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
 
 <script>
 const DATA_URL = '/data/dashboard.json';
+const RUNS_PER_PAGE = 20;
+let dashboardData = { runs: [], benchmarks: [], stats: {} };
+let runPage = 1;
 
 async function load() {
   try {
     const res = await fetch(DATA_URL);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    render(data);
+    render(await res.json());
   } catch (err) {
-    document.getElementById('subtitle').textContent = `Error: ${err.message}`;
+    document.getElementById('subtitle').textContent = `读取失败：${safeText(err && err.message, '无法读取仪表盘')}`;
   }
 }
 
 function render(data) {
-  const { runs, benchmarks, stats } = data;
+  dashboardData = {
+    runs: Array.isArray(data.runs) ? data.runs : [],
+    benchmarks: Array.isArray(data.benchmarks) ? data.benchmarks : [],
+    stats: data.stats || {},
+  };
+  runPage = 1;
+  renderSummary();
+  renderCostChart();
+  renderRuns();
+  renderBenchmarks();
+}
 
-  // Subtitle
+function renderSummary() {
+  const stats = dashboardData.stats;
+  const totalRuns = safeNumber(stats.totalRuns);
+  const totalBenchmarks = safeNumber(stats.totalBenchmarks);
+  const passRate = safeNumber(stats.passRate);
+  const totalCost = safeNumber(stats.totalCost);
+  const avgIterations = safeNumber(stats.avgIterations);
+  const unknownCosts = safeNumber(stats.unknownCostRuns);
+
   document.getElementById('subtitle').textContent =
-    `${stats.totalRuns} runs · ${stats.totalBenchmarks} benchmarks · $${stats.totalCost.toFixed(2)} total`;
-
-  // Stats cards
-  const statsEl = document.getElementById('stats');
-  statsEl.innerHTML = `
-    <div class="card"><div class="stat-label">Total Runs</div><div class="stat-value">${stats.totalRuns}</div></div>
-    <div class="card"><div class="stat-label">Pass Rate</div><div class="stat-value ${stats.passRate >= 0.8 ? 'status-passed' : 'status-failed'}">${(stats.passRate * 100).toFixed(0)}%</div></div>
-    <div class="card"><div class="stat-label">Total Cost</div><div class="stat-value">$${stats.totalCost.toFixed(2)}</div></div>
-    <div class="card"><div class="stat-label">Avg Iterations</div><div class="stat-value">${stats.avgIterations.toFixed(1)}</div></div>
+    `${totalRuns} 次运行 · ${totalBenchmarks} 份 Benchmark · ${formatCost({ totalCostUsd: totalCost, usageStatus: stats.usageStatus }, 2)} 累计花费`;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="stat-label">运行总数</div><div class="stat-value">${totalRuns}</div></div>
+    <div class="stat"><div class="stat-label">通过率</div><div class="stat-value ${passRate >= 0.8 ? 'status-passed' : 'status-failed'}">${(passRate * 100).toFixed(0)}%</div></div>
+    <div class="stat"><div class="stat-label">${unknownCosts > 0 ? '已知花费' : '累计花费'}</div><div class="stat-value">${formatCost({ totalCostUsd: totalCost, usageStatus: stats.usageStatus }, 2)}</div></div>
+    <div class="stat"><div class="stat-label">平均轮次</div><div class="stat-value">${avgIterations.toFixed(1)}</div></div>
   `;
+}
 
-  // Cost chart
+function renderCostChart() {
   const costChart = document.getElementById('cost-chart');
-  if (runs.length > 0) {
-    const maxCost = Math.max(...runs.map(r => r.totalCostUsd || 0));
-    costChart.innerHTML = runs.slice(-20).map(r => {
-      const cost = r.totalCostUsd || 0;
-      const h = maxCost > 0 ? (cost / maxCost) * 100 : 0;
-      const cls = r.stopReason === 'passed' ? 'bar-passed' : 'bar-failed';
-      return `<div class="bar ${cls}" style="height:${Math.max(h, 4)}px" title="${r.runId}: $${cost.toFixed(4)}"></div>`;
-    }).join('');
-  } else {
-    costChart.innerHTML = '<div class="empty">No runs yet</div>';
+  const recentRuns = dashboardData.runs.slice(-20);
+  if (recentRuns.length === 0) {
+    costChart.innerHTML = '<div class="empty">还没有运行记录</div>';
+    return;
   }
+  const maxCost = Math.max(...recentRuns.map((run) => safeNumber(run.totalCostUsd)));
+  costChart.innerHTML = recentRuns.map((run) => {
+    const cost = safeNumber(run.totalCostUsd);
+    const height = maxCost > 0 ? (cost / maxCost) * 100 : 0;
+    const status = safeText(run.stopReason, 'unknown');
+    const cls = status === 'passed' ? 'bar-passed' : isWarningStatus(status) ? 'bar-warning' : 'bar-failed';
+    const title = `${safeText(run.runId, '?')}：${formatCost(run, 4)}，${statusLabel(status)}`;
+    return `<div class="bar ${cls}" style="height:${Math.max(height, 4)}px" title="${escapeAttr(title)}"></div>`;
+  }).join('');
+}
 
-  // Runs table
+function resetRunPage() {
+  runPage = 1;
+  renderRuns();
+}
+
+function changeRunPage(delta) {
+  const totalPages = Math.max(1, Math.ceil(filteredRuns().length / runPageSize()));
+  runPage = Math.min(totalPages, Math.max(1, runPage + delta));
+  renderRuns();
+}
+
+function runPageSize() {
+  return typeof window.innerWidth === 'number' && window.innerWidth <= 760 ? 10 : RUNS_PER_PAGE;
+}
+
+function filteredRuns() {
+  const query = controlValue('run-search').toLowerCase().trim();
+  const filter = controlValue('run-status') || 'all';
+  return dashboardData.runs.filter((run) => {
+    const status = safeText(run.stopReason, 'unknown');
+    if (filter === 'passed' && status !== 'passed') return false;
+    if (filter === 'resumable' && !['resumable', 'interrupted', 'provider_error'].includes(status)) return false;
+    if (filter === 'cancelled' && status !== 'cancelled') return false;
+    if (filter === 'failed' && ['passed', 'resumable', 'interrupted', 'provider_error', 'cancelled'].includes(status)) return false;
+    if (!query) return true;
+    return [run.runId, run.taskId, run.stopReason].map((value) => safeText(value, '')).join(' ').toLowerCase().includes(query);
+  });
+}
+
+function renderRuns() {
+  const filtered = filteredRuns().slice().reverse();
+  const pageSize = runPageSize();
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  if (runPage > totalPages) runPage = totalPages;
+  const start = (runPage - 1) * pageSize;
+  const pageRuns = filtered.slice(start, start + pageSize);
   const runsBody = document.getElementById('runs-body');
-  if (runs.length === 0) {
-    runsBody.innerHTML = '<tr><td colspan="7" class="empty">No runs found</td></tr>';
+  if (pageRuns.length === 0) {
+    runsBody.innerHTML = '<tr><td colspan="7" class="empty">没有符合条件的运行记录</td></tr>';
   } else {
-    runsBody.innerHTML = runs.slice().reverse().map(r => `
-      <tr class="clickable" onclick="window.location='/view/${r.runId}'">
-        <td><a href="/view/${r.runId}">${r.runId}</a></td>
-        <td>${r.taskId || '?'}</td>
-        <td>${r.stopReason === 'passed'
-          ? '<span class="badge badge-ok">passed</span>'
-          : `<span class="badge badge-fail">${r.stopReason}</span>`}</td>
-        <td>${r.iterations || '?'}</td>
-        <td>$${(r.totalCostUsd || 0).toFixed(4)}</td>
-        <td>${fmtDuration(r.totalDurationMs)}</td>
-        <td>${r.timestamp ? new Date(r.timestamp).toLocaleString() : '?'}</td>
-      </tr>
-    `).join('');
+    runsBody.innerHTML = pageRuns.map((run) => {
+      const runId = safeText(run.runId, '?');
+      const path = viewPath(runId);
+      const stopReason = safeText(run.stopReason, 'unknown');
+      return `
+        <tr>
+          <td data-label="运行编号"><a class="run-link" href="${escapeAttr(path)}">${escapeHtml(runId)}</a></td>
+          <td data-label="任务">${escapeHtml(run.taskId, '?')}</td>
+          <td data-label="状态"><span class="badge badge-${statusBadge(stopReason)}">${escapeHtml(statusLabel(stopReason))}</span></td>
+          <td data-label="轮次">${safeNumber(run.iterations) || '?'}</td>
+          <td data-label="花费">${formatCost(run, 4)}</td>
+          <td data-label="耗时">${fmtDuration(run.totalDurationMs)}</td>
+          <td data-label="时间">${formatDate(run.timestamp)}</td>
+        </tr>
+      `;
+    }).join('');
   }
+  document.getElementById('run-count').textContent =
+    filtered.length ? `第 ${runPage} / ${totalPages} 页，共 ${filtered.length} 条记录` : '共 0 条记录';
+  document.getElementById('prev-page').disabled = runPage <= 1;
+  document.getElementById('next-page').disabled = runPage >= totalPages;
+}
 
-  // Benchmarks table
+function renderBenchmarks() {
   const benchBody = document.getElementById('bench-body');
-  if (benchmarks.length === 0) {
-    benchBody.innerHTML = '<tr><td colspan="5" class="empty">No benchmarks found</td></tr>';
-  } else {
-    benchBody.innerHTML = benchmarks.map(b => `
-      <tr class="clickable" onclick="window.location='/view/${b.id}'">
-        <td><a href="/view/${b.id}">${b.id}</a></td>
-        <td>${b.tasks || '?'}</td>
-        <td>${b.passed || 0}/${b.tasks || 0}</td>
-        <td>$${(b.totalCostUsd || 0).toFixed(2)}</td>
-        <td>${fmtDuration(b.totalDurationMs)}</td>
-      </tr>
-    `).join('');
+  if (dashboardData.benchmarks.length === 0) {
+    benchBody.innerHTML = '<tr><td colspan="5" class="empty">还没有 Benchmark 记录</td></tr>';
+    return;
   }
+  benchBody.innerHTML = dashboardData.benchmarks.map((benchmark) => {
+    const id = safeText(benchmark.id, '?');
+    const path = viewPath(id);
+    const tasks = safeNumber(benchmark.tasks);
+    return `
+      <tr>
+        <td><a class="run-link" href="${escapeAttr(path)}">${escapeHtml(id)}</a></td>
+        <td>${tasks || '?'}</td>
+        <td>${safeNumber(benchmark.passed)}/${tasks}</td>
+        <td>${formatCost(benchmark, 2)}</td>
+        <td>${fmtDuration(benchmark.totalDurationMs)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function controlValue(id) {
+  const value = document.getElementById(id) && document.getElementById(id).value;
+  return typeof value === 'string' ? value : '';
+}
+
+function viewPath(id) {
+  return `/view/${encodeURIComponent(id)}`;
+}
+
+function statusLabel(status) {
+  const labels = {
+    passed: '已通过',
+    cancelled: '已停止',
+    interrupted: '已中断，可继续',
+    resumable: '可继续',
+    provider_error: '服务请求未完成',
+    max_iterations: '达到轮数上限',
+    budget_exceeded: '预算已用完',
+    no_progress: '没有进展',
+    stage_failed: '阶段未通过',
+    error: '运行错误',
+  };
+  return labels[status] || status || '未知';
+}
+
+function statusBadge(status) {
+  if (status === 'passed') return 'ok';
+  if (isWarningStatus(status)) return 'warning';
+  return 'fail';
+}
+
+function isWarningStatus(status) {
+  return ['cancelled', 'interrupted', 'resumable', 'provider_error', 'max_iterations', 'budget_exceeded', 'no_progress'].includes(status);
+}
+
+function formatDate(value) {
+  const text = safeText(value, '');
+  if (!text) return '?';
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? '?' : date.toLocaleString('zh-CN');
 }
 
 function fmtDuration(ms) {
-  if (!ms) return '?';
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms/1000).toFixed(1)}s`;
-  return `${(ms/60000).toFixed(1)}m`;
+  const value = safeNumber(ms);
+  if (value <= 0) return '?';
+  if (value < 1000) return `${value}ms`;
+  if (value < 60000) return `${(value / 1000).toFixed(1)}s`;
+  return `${(value / 60000).toFixed(1)}m`;
+}
+
+function safeText(value, fallback = '-') {
+  if (typeof value === 'string' && value.length > 0) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return fallback;
+}
+
+function formatCost(value, digits = 2) {
+  const status = value && value.usage && typeof value.usage.status === 'string'
+    ? value.usage.status
+    : value && typeof value.usageStatus === 'string'
+      ? value.usageStatus
+      : value && typeof value.totalCostUsd === 'number'
+        ? 'complete'
+        : 'unknown';
+  if (status === 'unknown' || !value || typeof value.totalCostUsd !== 'number') return '未知';
+  const text = '$' + value.totalCostUsd.toFixed(digits);
+  return status === 'partial' ? text + '+' : text;
+}
+
+function safeNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function escapeHtml(value, fallback = '-') {
+  return safeText(value, fallback)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escapeAttr(value, fallback = '-') {
+  return escapeHtml(value, fallback);
 }
 
 load();

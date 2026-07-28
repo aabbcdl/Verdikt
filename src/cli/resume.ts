@@ -5,21 +5,33 @@
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { resumeSupervisorLoop } from "../loop/supervisor.js";
+import { coerceUsageSummary, formatCost } from "../usage.js";
 import { cliSuccess, cliWarning, notFoundError } from "./errors.js";
 import { EXIT_CODES } from "./errors.js";
+import { isPathInside, isValidRunId } from "./localServer.js";
+import { hasFlag, parseArgs } from "./parseArgs.js";
 
 export async function handleResume(args: string[]): Promise<void> {
-  const runId = args[0];
-  if (!runId) {
+  if (args.length === 0) {
     notFoundError(
       "Run ID",
       "",
       'Usage: verdikt resume <run-id>\nUse "verdikt list" to see available runs.',
     );
   }
+  const parsed = parseArgs(args, {
+    boolean: ["json"],
+    positional: { min: 1, max: 1, names: ["run-id"] },
+  });
+  const runId = parsed.positional[0];
 
   const config = (await import("../config.js")).getConfig();
-  const runDir = resolve(config.stateDir, runId);
+  const stateDir = resolve(config.stateDir);
+  const runDir = resolve(stateDir, runId);
+  if (!isValidRunId(runId) || !isPathInside(stateDir, runDir)) {
+    notFoundError("Run", runId, "Invalid run ID.");
+  }
+
   const statePath = join(runDir, "state.json");
   const summaryPath = join(runDir, "summary.json");
 
@@ -39,7 +51,7 @@ export async function handleResume(args: string[]): Promise<void> {
     }
   }
 
-  const jsonOutput = args.includes("--json");
+  const jsonOutput = hasFlag(parsed, "json");
 
   if (!jsonOutput) {
     const { loadRunState } = await import("../trace/recorder.js");
@@ -48,7 +60,11 @@ export async function handleResume(args: string[]): Promise<void> {
       console.log(`\n🔄 Resuming run ${runId}`);
       console.log(`   Task: ${state.task.id}`);
       console.log(`   From iteration: ${state.nextIteration + 1}`);
-      console.log(`   Cost so far: $${state.totalCostUsd.toFixed(4)}`);
+      const usage = coerceUsageSummary(
+        state.usage ?? { status: state.usageStatus, costUsd: state.totalCostUsd },
+        state.totalCostUsd,
+      );
+      console.log(`   Cost so far: ${formatCost(usage, 4)}`);
       console.log(`   Last saved: ${state.lastSavedAt}\n`);
     }
   }
@@ -63,6 +79,8 @@ export async function handleResume(args: string[]): Promise<void> {
       stopReason: result.reason,
       iterations: result.iterations.length,
       totalCostUsd: result.totalCostUsd,
+      usageStatus: result.usageStatus ?? result.usage?.status ?? "complete",
+      usage: result.usage ?? null,
       totalDurationMs: result.totalDurationMs,
       runId: result.runId ?? null,
     };

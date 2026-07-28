@@ -117,20 +117,26 @@ async function loadAllRuns(stateDir: string): Promise<RunData[]> {
       const raw = await readFile(summaryPath, "utf-8");
       const summary = JSON.parse(raw);
 
-      const iterations = (summary.iterations ?? []).map(
-        (iter: Record<string, Record<string, unknown>>, i: number) => ({
+      const summaryRecord = isRecord(summary) ? summary : {};
+      const iterations = asArray(summaryRecord.iterations).map((iter, i) => {
+        const iterRecord = isRecord(iter) ? iter : {};
+        const judge = isRecord(iterRecord.judge) ? iterRecord.judge : {};
+        const verifier = isRecord(iterRecord.verifier) ? iterRecord.verifier : {};
+        const patch = isRecord(iterRecord.patch) ? iterRecord.patch : {};
+
+        return {
           index: i,
-          judgePassed: iter.judge?.passed ?? false,
-          verifierProblems: iter.verifier?.problems ?? [],
-          verifierNextInstruction: iter.verifier?.nextInstruction ?? null,
-          filesChanged: iter.patch?.filesChanged ?? [],
-        }),
-      );
+          judgePassed: judge.passed === true,
+          verifierProblems: stringArray(verifier.problems),
+          verifierNextInstruction: optionalString(verifier.nextInstruction),
+          filesChanged: stringArray(patch.filesChanged),
+        };
+      });
 
       runs.push({
         runId: entry,
-        taskId: summary.taskId ?? "?",
-        stopReason: summary.stopReason ?? "unknown",
+        taskId: optionalString(summaryRecord.taskId) ?? "?",
+        stopReason: optionalString(summaryRecord.stopReason) ?? "unknown",
         iterations,
       });
     } catch {
@@ -209,6 +215,24 @@ function normalizeProblem(problem: string): string {
 
   // Fallback: use first 50 chars as pattern
   return problem.slice(0, 50).replace(/\s+/g, " ").trim();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function optionalString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function stringArray(value: unknown): string[] {
+  return asArray(value).filter((item): item is string => {
+    return typeof item === "string" && item.trim().length > 0;
+  });
 }
 
 function extractRecoveryStrategies(runs: RunData[]): Array<{

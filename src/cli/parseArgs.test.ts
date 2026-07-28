@@ -68,6 +68,13 @@ describe("parseArgs", () => {
       expect(result.flags.get("out")).toBe("/tmp/output");
     });
 
+    it("parses inline flag values", () => {
+      const result = parseArgs(["--out=/tmp/output"], {
+        optional: ["out"],
+      });
+      expect(result.flags.get("out")).toBe("/tmp/output");
+    });
+
     it("does not throw when optional flag is missing", () => {
       expect(() =>
         parseArgs([], {
@@ -99,6 +106,12 @@ describe("parseArgs", () => {
       });
       expect(result.flags.has("json")).toBe(false);
     });
+
+    it("rejects values attached to boolean flags", () => {
+      expect(() => parseArgs(["--json=false"], { boolean: ["json"] })).toThrow(
+        "Flag --json does not take a value",
+      );
+    });
   });
 
   describe("unknown flags", () => {
@@ -117,6 +130,10 @@ describe("parseArgs", () => {
           boolean: ["json"],
         }),
       ).toThrow("--task, --json");
+    });
+
+    it("rejects unknown short flags", () => {
+      expect(() => parseArgs(["-x"], { boolean: ["json"] })).toThrow("Unknown flag: -x");
     });
   });
 

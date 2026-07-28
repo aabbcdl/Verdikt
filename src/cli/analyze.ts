@@ -2,7 +2,10 @@
  * CLI handler for `verdikt analyze` command.
  */
 
-export async function handleAnalyze(): Promise<void> {
+import { parseArgs } from "./parseArgs.js";
+
+export async function handleAnalyze(args: string[] = []): Promise<void> {
+  parseArgs(args, { positional: { max: 0 } });
   const config = (await import("../config.js")).getConfig();
   const { analyzeRuns } = await import("../improvement/analyzer.js");
 

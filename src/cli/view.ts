@@ -4,17 +4,56 @@
 
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
+import {
+  type LocalServerHandle,
+  dataContentType,
+  injectDefaultDataDir,
+  isAllowedDataFile,
+  isPathInside,
+  isValidRunId,
+  listenLocal,
+} from "./localServer.js";
+import { parseArgs } from "./parseArgs.js";
 
 export async function handleView(args: string[]): Promise<void> {
-  const id = args[0];
-  if (!id) {
-    console.error("Error: run-id or benchmark-id is required");
-    console.error("Usage: verdikt view <run-id|benchmark-id>");
+  const { positional } = parseArgs(args, {
+    positional: { min: 1, max: 1, names: ["run-id|benchmark-id"] },
+  });
+  const id = positional[0];
+
+  let handle: ViewServerHandle;
+  try {
+    handle = await startViewServer({ id, port: 3847 });
+  } catch {
+    console.error(`\nRun or benchmark not found: ${id}`);
+    console.error('\nUse "verdikt list" to see available runs and benchmarks.');
     process.exit(1);
   }
+  const label = handle.isBenchmark ? "Benchmark Viewer" : "Run Viewer";
+  console.log(`\nVerdikt ${label}`);
+  console.log(`   ${handle.isBenchmark ? "Benchmark" : "Run"}: ${id}`);
+  console.log(`   URL: ${handle.url}`);
+  console.log("\n   Press Ctrl+C to stop.\n");
+}
 
+export interface ViewServerHandle extends LocalServerHandle {
+  isBenchmark: boolean;
+}
+
+export async function startViewServer(options: {
+  id: string;
+  port: number;
+  host?: string;
+}): Promise<ViewServerHandle> {
+  const id = options.id;
   const config = (await import("../config.js")).getConfig();
-  const itemDir = resolve(config.stateDir, id);
+  const stateDir = resolve(config.stateDir);
+  const itemDir = resolve(stateDir, id);
+
+  if (!isValidRunId(id) || !isPathInside(stateDir, itemDir)) {
+    throw new Error("Invalid run or benchmark ID");
+  }
+
   const summaryPath = join(itemDir, "summary.json");
   const benchmarkPath = join(itemDir, "benchmark.json");
 
@@ -22,49 +61,62 @@ export async function handleView(args: string[]): Promise<void> {
   const isRun = existsSync(summaryPath);
 
   if (!isBenchmark && !isRun) {
-    console.error(`\n❌ Run or benchmark not found: ${id}`);
-    console.error('\nUse "verdikt list" to see available runs and benchmarks.');
-    process.exit(1);
+    throw new Error(`Run or benchmark not found: ${id}`);
   }
 
-  // Serve the UI
   const { createServer } = await import("node:http");
   const { readFile: readFileFs } = await import("node:fs/promises");
-  const runUiPath = resolve(import.meta.dirname, "../../apps/ui/index.html");
-  const benchUiPath = resolve(import.meta.dirname, "../../apps/ui/benchmark.html");
-  const htmlPath = isBenchmark ? benchUiPath : runUiPath;
+  const htmlPath = isBenchmark
+    ? resolve(import.meta.dirname, "../../apps/ui/benchmark.html")
+    : resolve(import.meta.dirname, "../../apps/ui/index.html");
 
-  const port = 3847;
+  const port = options.port;
   const server = createServer(async (req, res) => {
-    const url = new URL(req.url ?? "/", `http://localhost:${port}`);
+    const url = new URL(req.url ?? "/", `http://127.0.0.1:${port}`);
+
+    if (url.pathname === "/favicon.ico") {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
 
     if (url.pathname === "/" || url.pathname === "/index.html") {
       const html = await readFileFs(htmlPath, "utf-8");
-      res.writeHead(200, { "Content-Type": "text/html" });
-      res.end(html);
-    } else if (url.pathname.startsWith("/data/")) {
-      // Serve run/benchmark data files
-      const filePath = resolve(itemDir, url.pathname.replace("/data/", ""));
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(injectDefaultDataDir(html, "/data"));
+      return;
+    }
+
+    if (url.pathname.startsWith("/data/")) {
+      const fileName = url.pathname.replace(/^\/data\//, "");
+      if (!isAllowedDataFile(fileName)) {
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("Invalid data path");
+        return;
+      }
+
+      const filePath = resolve(itemDir, fileName);
+      if (!isPathInside(itemDir, filePath)) {
+        res.writeHead(403, { "Content-Type": "text/plain" });
+        res.end("Access denied");
+        return;
+      }
+
       try {
         const content = await readFileFs(filePath, "utf-8");
-        res.writeHead(200, { "Content-Type": "application/json" });
+        res.writeHead(200, { "Content-Type": dataContentType(fileName) });
         res.end(content);
       } catch {
-        // File not found or read error — return 404
-        res.writeHead(404);
+        res.writeHead(404, { "Content-Type": "text/plain" });
         res.end("Not found");
       }
-    } else {
-      res.writeHead(404);
-      res.end("Not found");
+      return;
     }
+
+    res.writeHead(404);
+    res.end("Not found");
   });
 
-  server.listen(port, () => {
-    const label = isBenchmark ? "Benchmark Viewer" : "Run Viewer";
-    console.log(`\n🌐 Verdikt ${label}`);
-    console.log(`   ${isBenchmark ? "Benchmark" : "Run"}: ${id}`);
-    console.log(`   URL: http://localhost:${port}?dir=/data`);
-    console.log("\n   Press Ctrl+C to stop.\n");
-  });
+  const handle = await listenLocal(server, { port, host: options.host });
+  return { ...handle, isBenchmark };
 }

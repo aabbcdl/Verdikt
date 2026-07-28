@@ -1,252 +1,246 @@
 # Verdikt
 
-**Autonomous Iterative Coder** — 安全、可恢复、可审计的自治编码执行系统。
+Verdikt 是一个本地控制台，用来把一个编码 agent 和一个审查 agent 串成闭环：一个负责执行任务，另一个负责挑错和确认，最后再用你的验收命令判断是否真的完成。
 
-Verdikt 让 Claude Code 在隔离环境中反复"执行 → 客观裁决 → 反馈纠偏 → 再执行"，直到通过验收或安全停机。不信任 agent 自述，只信任退出码。
+它的核心目标很直接：减少“看起来完成了，其实没完成”的情况，让你不用一直盯着终端。
 
-## 核心特性
-
-- **双角色闭环**：Executor 改代码，Verifier 挑错，Judge 用退出码裁决
-- **安全隔离**：git worktree 每轮隔离，失败不污染原仓库
-- **显式交付**：默认不自动改原 repo，用户 `verdikt apply` 才生效
-- **防作弊**：integrity guard 检测 skip/only/删断言/改测试脚本
-- **语义风险扫描**：12 条规则检测硬编码、全局状态、memoization 等可疑 patch
-- **结构化 judge**：支持 test + typecheck + lint 分步执行
-- **完整留痕**：每轮 patch、judge 结果、verifier 反馈、成本、耗时全部记录
-- **Benchmark 系统**：批量任务评估，14 个聚合指标，recovery 分析
-- **可观测 UI**：Run Detail + Benchmark Overview 暗色主题页面
-
-## 快速开始
+## 第一次打开推荐流程
 
 ```bash
-# 安装依赖
 pnpm install
-
-# 检查环境
-node dist/index.js doctor
-
-# 创建任务模板
-node dist/index.js init my-task ./path/to/target/repo
-
-# 编辑任务（设置 goal、acceptance criteria 等）
-vim my-task.task.json
-
-# 运行自治循环
-node dist/index.js run --task my-task.task.json
-
-# 查看结果
-node dist/index.js list
-node dist/index.js view <run-id>
+pnpm app
 ```
 
-## CLI 命令
-
-| 命令 | 说明 |
-|------|------|
-| `verdikt run --task <file>` | 运行自治循环 |
-| `verdikt benchmark --suite <file>` | 运行 benchmark suite |
-| `verdikt list` | 浏览历史 runs 和 benchmarks |
-| `verdikt view <id>` | 查看 run 或 benchmark 详情 UI |
-| `verdikt init [id] [repo]` | 创建 task spec 模板 |
-| `verdikt apply <run-id>` | 显式 apply patch 到原 repo |
-| `verdikt discard <run-id>` | 丢弃 worktree |
-| `verdikt doctor` | 环境健康检查 |
-
-### 运行选项
+启动后会自动打开浏览器。如果你不想自动打开，可以用：
 
 ```bash
-verdikt run --task <file>              # 默认：worktree + integrity 全开
-verdikt run --task <file> --auto-apply  # passed 后自动 apply
-verdikt run --task <file> --no-worktree # 跳过 worktree（开发用）
-verdikt run --task <file> --no-integrity # 跳过 integrity 检查
+pnpm app:no-open
 ```
 
-## Task Spec 格式
+Windows 也可以直接运行：
+
+```powershell
+.\scripts\start-verdikt-app.ps1
+```
+
+浏览器打开控制台后：
+
+1. 点 **填入示例**。
+2. 点 **预览配置**，确认示例项目路径和验收命令。
+3. 点 **开始执行任务**。
+4. 运行结束后先看 **查看修改** 和 **查看完整结果**。
+5. 满意再点 **应用修改**，不满意就 **丢弃** 或 **继续运行**。
+
+默认不会改原项目。Verdikt 会先在隔离副本里工作，只有你明确点 **应用修改**，改动才会写回原项目。
+
+目标仓库需要处于干净状态（没有未提交的改动），否则任务会在开始前被拒绝——这样可以避免跑完之后补丁无法应用。先提交或 stash 改动即可；确需强制继续时可在任务中设置 `allowDirtyRepo`（命令行 `--allow-dirty`），通过后的补丁需手动应用。
+
+## 现在能做什么
+
+- **任务工作台**：正在跑、排队中、历史记录、可继续的任务都集中显示。
+- **排队运行**：一次只跑一个任务，后续任务自动排队，不会互相抢终端。
+- **失败后给下一步**：失败时会告诉你更适合继续、重试、查看日志，还是调整任务。
+- **查看修改**：任务通过后可以直接看改了哪些文件、增删了多少、补丁内容是什么。
+- **继续和重试**：中断的任务可以继续；失败的任务可以用同样目标重新尝试。
+- **多阶段任务**：复杂任务可以拆成“诊断、修复、验收”等节点，让执行更稳。
+- **双 agent 视图**：详情页按轮次展示执行 agent 做了什么、审查 agent 发现了什么。
+- **完成通知**：浏览器允许通知后，任务结束会提醒你。
+- **完整时间线**：从开始、规划、执行、验收、审查到结束都按顺序保存，重启后仍能查看。
+- **下一轮补充说明**：运行中可以先写补充要求，它会在下一轮安全生效，不会打断当前步骤。
+- **回到某一轮或创建新尝试**：保留原任务的同时，可以从历史轮次换一个方向继续。
+- **具体操作确认**：发布、删除、生产写入等危险动作会展示具体命令，可只允许一次或允许本次运行。
+- **可选只读规划**：复杂任务可先生成方案，必要时等你确认后再开始修改。
+- **真实花费状态**：拿不到完整数据时明确显示“未知”或“部分”，不再把缺失数据当成零。
+- **项目检查扩展**：可以在关键节点运行项目内的检查脚本，选择提醒或阻止继续。
+
+## 适合什么场景
+
+Verdikt 适合这类任务：
+
+- 修复一个明确的测试失败。
+- 让 agent 实现一个小到中等规模的新功能。
+- 对一个改动反复执行“修改、验收、审查、再修改”。
+- 你想把 agent 放着跑，但又不想完全相信它自己说“完成了”。
+
+不适合这类任务：
+
+- 没有验收命令、也没有清楚完成标准的开放式探索。
+- 会直接影响生产环境、密钥、支付、数据库迁移的高风险任务。
+- 需要人持续做产品判断或视觉判断的大改版。
+
+## 基本工作方式
+
+```mermaid
+flowchart LR
+  A["你提交任务"] --> B["执行 agent 修改代码"]
+  B --> C["验收命令运行"]
+  C --> D["审查 agent 检查问题"]
+  D --> E{"真的通过了吗？"}
+  E -- "没有" --> B
+  E -- "通过" --> F["生成补丁，等待你应用"]
+```
+
+Verdikt 不把 agent 的自我描述当最终结果。验收命令、审查结论和补丁记录会一起决定任务是否完成。
+
+## 命令行
+
+| 命令 | 用途 |
+| --- | --- |
+| `pnpm app` | 构建并打开 Web 控制台 |
+| `pnpm app:no-open` | 构建并启动控制台，但不自动打开浏览器 |
+| `node dist/index.js app --port=3849` | 指定端口启动控制台 |
+| `node dist/index.js run --task task.json` | 直接从命令行运行任务 |
+| `node dist/index.js list` | 查看历史运行 |
+| `node dist/index.js view <run-id>` | 打开某次运行详情 |
+| `node dist/index.js resume <run-id>` | 继续一次中断的运行 |
+| `node dist/index.js apply <run-id>` | 把通过的补丁应用回原项目 |
+| `node dist/index.js discard <run-id>` | 丢弃一次运行的隔离副本 |
+| `node dist/index.js doctor` | 检查本机环境 |
+| `node dist/index.js note <run-id> "说明"` | 给下一轮加入补充说明 |
+| `node dist/index.js rewind <run-id> <轮次>` | 回到某一轮继续 |
+| `node dist/index.js fork <run-id> <轮次>` | 从某一轮创建独立的新尝试 |
+| `node dist/index.js warm <repo-path>` | 提前准备下一次运行的干净隔离副本 |
+
+## 任务文件示例
 
 ```json
 {
-  "id": "fix-auth-bug",
-  "goal": "Fix the authentication middleware so that expired tokens return 401 instead of 500",
-  "repoPath": "./my-project",
+  "id": "fix-sum",
+  "goal": "Fix the sum function so it correctly adds two numbers.",
+  "stages": [
+    {
+      "id": "diagnose",
+      "title": "诊断",
+      "goal": "确认失败测试和错误函数"
+    },
+    {
+      "id": "fix",
+      "title": "修复",
+      "goal": "修改实现并保持测试不变"
+    },
+    {
+      "id": "verify",
+      "title": "验收",
+      "goal": "运行测试并等待审查 agent 通过"
+    }
+  ],
+  "repoPath": "./examples/demo-failing-test",
   "acceptance": {
-    "testCommand": "npm test",
     "steps": [
-      { "id": "test", "command": "npm", "args": ["test"] },
-      { "id": "typecheck", "command": "npx", "args": ["tsc", "--noEmit"] }
+      { "id": "test", "command": "npx", "args": ["vitest", "run"] }
     ]
   },
   "maxIterations": 5,
-  "maxBudgetUsd": 10,
+  "maxBudgetUsd": 5,
   "integrity": {
-    "allowTestChanges": false,
-    "allowConfigChanges": false
+    "allowTestChanges": false
   },
   "semantic": {
     "maxRisk": "low"
-  }
+  },
+  "planning": {
+    "mode": "auto",
+    "requireApproval": false
+  },
+  "hooks": [
+    {
+      "event": "before_run",
+      "script": "examples/hooks/allow.cjs",
+      "failureMode": "block",
+      "timeoutMs": 15000
+    }
+  ]
 }
 ```
 
-### 字段说明
+## 产物在哪里
 
-| 字段 | 必填 | 说明 |
-|------|:----:|------|
-| `id` | ✓ | 任务唯一标识 |
-| `goal` | ✓ | 自然语言描述的执行目标 |
-| `repoPath` | ✓ | 目标仓库路径 |
-| `acceptance.testCommand` | ✓ | 必须退出 0 的测试命令 |
-| `acceptance.steps` | | 结构化 judge steps（优先于 testCommand） |
-| `maxIterations` | | 最大轮次（默认 5） |
-| `maxBudgetUsd` | | 预算硬上限 |
-| `integrity` | | 测试完整性策略 |
-| `semantic` | | 语义风险门控 |
+每次运行都会记录在 `.verdikt/<run-id>/` 下面，常见内容包括：
 
-## 架构
-
-```
-用户（task + acceptance）
-  → SupervisorLoop（确定性编排）
-    → Executor（Claude Code，改代码）
-    → Judge（test/build exit code，客观裁决）
-    → Verifier（Claude Code，挑剔 QA）
-    → StopCondition（passed / no_progress / max_iterations / budget_exceeded）
-    → 循环或交付
-```
-
-**核心原则：judge 永远是对的。** Executor 的自述和 Verifier 的解读都不能覆盖客观测试结果。
-
-## 配置
-
-| 环境变量 | 默认值 | 说明 |
-|----------|--------|------|
-| `ANTHROPIC_BASE_URL` | — | API endpoint（如 Mimo 代理） |
-| `ANTHROPIC_API_KEY` | — | API key |
-| `VERDIKT_MODEL` | `sonnet` | 模型名 |
-| `VERDIKT_MAX_ITERATIONS` | `5` | 默认最大轮次 |
-| `VERDIKT_TIMEOUT_MS` | `300000` | 单次 Claude 调用 idle 超时 |
-| `VERDIKT_STATE_DIR` | `.verdikt` | 运行产物目录 |
-
-## Run 产物
-
-每次 run 在 `.verdikt/<runId>/` 下产生：
-
-```
-summary.json        # 完整摘要：状态、workspace、patch、integrity、semantic risk
-iterations.jsonl    # 每轮一行 JSON：judge、verifier、patch、cost
-evidence/
-  iteration-0.patch # 每轮 diff
-  iteration-1.patch
-  final.patch       # 最终 patch（passed 时生成）
-task.json           # 任务 spec 备份
-```
-
-## Benchmark
-
-```bash
-# 运行 benchmark suite
-node dist/index.js benchmark --suite benchmarks/m5-repo-doctor.json
-
-# 查看结果
-node dist/index.js view benchmark-xxx
-```
-
-Benchmark 产出：
-
-```
-.verdikt/benchmark-xxx/
-  benchmark.json    # 聚合指标 + 逐任务结果
-  benchmark.md      # 人类可读报告
-  tasks/
-    task-1/         # 每个任务的独立 evidence
-    task-2/
-```
-
-### 核心指标
-
-| 指标 | 说明 |
-|------|------|
-| `expectedOutcomeRate` | 实际结果符合预期的比例 |
-| `successRate` | 最终 passed 比例 |
-| `firstTryPassRate` | 一轮通过率 |
-| `recoverableFailureSampleCount` | 首轮失败的可恢复样本数 |
-| `recoverableFailureRecoveryRate` | 首轮失败后恢复成功率 |
-| `infrastructureErrorRate` | 基础设施错误率 |
+- `summary.json`：这次运行的总结果。
+- `iterations.jsonl`：每一轮执行、验收、审查记录。
+- `events.jsonl`：完整运行时间线。
+- `plan.md`：开始前生成的方案（如果启用）。
+- `notes.json`：等待下一轮使用的补充说明。
+- `checkpoints/`：每轮可回退的保存点。
+- `action-approvals.json`：具体危险操作的确认记录。
+- `evidence/final.patch`：最终补丁。
+- `task.json`：当时使用的任务配置。
 
 ## 开发
 
 ```bash
-pnpm test          # 运行测试（49 个）
-pnpm build         # TypeScript 编译
-pnpm lint          # Biome lint
-pnpm lint:fix      # 自动修复
+pnpm install
+pnpm build
+pnpm test
+pnpm lint
 ```
 
-## CI Integration
+项目还在快速产品化阶段。现在的重点是把“双 agent 闭环”做成一个真正能日常使用的软件，而不是只停留在命令行原型。
+## 长任务、重启与恢复
 
-Verdikt works in CI pipelines. Use `--json` for machine-readable output:
+工作台会把排队、运行、等待确认和可恢复状态保存到 `.verdikt/queue.json`。正常关闭工作台时，正在执行的任务会先保存现场；再次启动后，排队任务会自动继续，可恢复任务也会重新进入队列。主动点击“停止运行”仍然表示真正取消，并会按取消规则清理现场。
+
+Windows 推荐用下面的脚本启动。服务异常退出时默认会自动重启：
+
+```powershell
+.\scripts\start-verdikt-app.ps1 -NoOpen
+```
+
+如果不希望自动重启：
+
+```powershell
+.\scripts\start-verdikt-app.ps1 -NoRestart
+```
+
+macOS 或 Linux 可以运行：
 
 ```bash
-verdikt run --task fix-auth.task.json --json
+sh scripts/start-verdikt-app.sh
 ```
 
-Output:
-```json
-{
-  "taskId": "fix-auth",
-  "goal": "Fix authentication timeout bug",
-  "passed": true,
-  "stopReason": "passed",
-  "iterations": 2,
-  "totalCostUsd": 0.45,
-  "totalDurationMs": 32000,
-  "runId": "run-20260603-abc123"
-}
+## 高风险确认与证据校验
+
+遇到部署、生产环境、数据库、密钥、外部写入、破坏性操作或项目外操作时，Verdikt 会先暂停。你可以在工作台里批准或拒绝，也可以使用命令：
+
+```bash
+node dist/index.js approve <run-id>
+node dist/index.js reject <run-id>
+node dist/index.js verify-evidence <run-id>
 ```
 
-Exit codes: `0` = passed, `1` = task failed, `2` = infrastructure error (budget exceeded, etc.)
+批准后会从保存的现场继续；拒绝后会让运行安全收尾。Verdikt 还会在执行过程中拦截临时出现的高风险命令，避免 agent 绕过任务开始前的确认。
 
-### GitHub Actions
+每次运行会生成 `evidence/manifest.json`。它记录关键文件的指纹和运行环境。应用或丢弃补丁后清单会自动更新；文件被改动或删除时，校验会明确列出问题。
 
-```yaml
-name: Autonomous Fix
-on:
-  issue_comment:
-    types: [created]
+## 可重复对比测试
 
-jobs:
-  verdikt:
-    if: contains(github.event.comment.body, '/fix')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '20' }
-      - run: npm install -g verdikt
-      - name: Run Verdikt
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          verdikt run --task .verdikt/task.json --json > result.json
-          echo "## Verdikt Result" >> $GITHUB_STEP_SUMMARY
-          cat result.json >> $GITHUB_STEP_SUMMARY
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: verdikt-result
-          path: result.json
+Benchmark 套件支持 `repeats`、`warmups` 和 `failFast`。重复运行会保留每次尝试，并报告通过率、中位耗时、最差耗时、波动、总花费、不稳定任务、模型和提交版本。
+## 规划、补充说明与回退
+
+- 控制台里的“开始前先规划”可以关闭、自动开启，或要求先确认方案。
+- 运行中填写“下一轮补充说明”，内容只会在下一轮开始时使用一次。
+- 输入轮次后可以回到该轮继续，或从该轮创建一个独立的新尝试。
+- 完整时间线会持续追加，不依赖页面一直打开。
+
+命令行示例：
+
+```bash
+node dist/index.js note <run-id> "不要改接口，优先修复缓存失效"
+node dist/index.js rewind <run-id> 2
+node dist/index.js fork <run-id> 2
 ```
 
-## 项目状态
+## 项目检查扩展
 
-| 里程碑 | 状态 | 说明 |
-|--------|:----:|------|
-| M1 | ✅ | 自治闭环验证（4 demo + mock 多轮） |
-| M2 | ✅ | 安全底座（worktree、integrity、discard、explicit apply） |
-| M3 | ✅ | 可观测 + 可评估（UI、benchmark runner、指标体系） |
-| M4 | ✅ | 可信度（semantic scanner、structured judge、recovery metrics） |
-| M5 | ✅ | 真实项目验证（RepoDoctor 3000 LOC，首个 patch-backed recovery） |
-| M6 | 🔄 | 产品化（Benchmark UI、CLI 完善、用户体验） |
+任务文件可以配置项目内的 JavaScript 检查脚本。脚本只能放在目标项目内，可在运行前、规划后、执行后、验收后、应用修改前或运行结束后触发。完整示例见 `examples/advanced.task.json` 和 `examples/hooks/allow.cjs`。
 
-## License
+## 工作区预备
 
-Private — not yet published.
+如果大型项目创建隔离副本较慢，可以先运行：
+
+```bash
+node dist/index.js warm D:\project\my-app
+```
+
+下一次运行会在项目版本未变化、预备副本仍然干净时使用它；否则自动改用普通创建方式。每次运行都会记录准备耗时。

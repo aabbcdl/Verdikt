@@ -7,9 +7,11 @@
  * On failure: discard the worktree, original repo untouched.
  */
 
-import { type ExecException, execFile, spawn } from "node:child_process";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { captureRepositorySnapshot } from "./repoIdentity.js";
+import { claimWarmWorkspace } from "./warm.js";
 
 export interface WorktreeInfo {
   /** Absolute path to the worktree directory */
@@ -20,6 +22,16 @@ export interface WorktreeInfo {
   baseCommit: string;
   /** Path to the evidence directory for patches */
   evidenceDir: string;
+  /** Time spent preparing the isolated workspace. */
+  setupDurationMs?: number;
+  /** Whether this workspace came from an explicit prewarm. */
+  warmed?: boolean;
+  /** Snapshot of the original repository before the run started. */
+  repoPath?: string;
+  repoHead?: string;
+  repoStatus?: string;
+  repoFingerprint?: string;
+  originalRepoCleanBeforeApply?: boolean;
 }
 
 /**
@@ -33,20 +45,109 @@ export async function createRunWorktree(
   runDir: string,
   runId: string,
 ): Promise<WorktreeInfo> {
+  const setupStartedAt = Date.now();
+  const sourceSnapshot = await captureRepositorySnapshot(repoPath);
+  const warmed = await claimWarmWorkspace(repoPath, runDir, runId);
+  if (warmed) {
+    return {
+      ...warmed,
+      setupDurationMs: Date.now() - setupStartedAt,
+      repoPath: sourceSnapshot.repoPath,
+      repoHead: sourceSnapshot.head,
+      repoStatus: sourceSnapshot.status,
+      repoFingerprint: sourceSnapshot.fingerprint,
+      originalRepoCleanBeforeApply: sourceSnapshot.clean,
+    };
+  }
   const baseCommit = await getHeadCommit(repoPath);
   const branchName = `verdikt/${runId}`;
   // Resolve to absolute path — relative CWD causes spawn ENOENT on Windows
   const worktreePath = resolve(join(runDir, "workspace"));
   const evidenceDir = resolve(join(runDir, "evidence"));
 
-  await mkdir(evidenceDir, { recursive: true });
+  let worktreeAdded = false;
+  try {
+    await mkdir(evidenceDir, { recursive: true });
 
-  // Create worktree with a new branch from current HEAD
-  await git(repoPath, ["worktree", "add", "--detach", worktreePath, "HEAD"]);
-  // Create and checkout the branch inside the worktree
-  await git(worktreePath, ["checkout", "-b", branchName]);
+    // Create worktree with a new branch from current HEAD
+    await git(repoPath, ["worktree", "add", "--detach", worktreePath, "HEAD"]);
+    worktreeAdded = true;
+    // Create and checkout the branch inside the worktree
+    await git(worktreePath, ["checkout", "-b", branchName]);
 
-  return { worktreePath, branchName, baseCommit, evidenceDir };
+    return {
+      worktreePath,
+      branchName,
+      baseCommit,
+      evidenceDir,
+      setupDurationMs: Date.now() - setupStartedAt,
+      warmed: false,
+      repoPath: sourceSnapshot.repoPath,
+      repoHead: sourceSnapshot.head,
+      repoStatus: sourceSnapshot.status,
+      repoFingerprint: sourceSnapshot.fingerprint,
+      originalRepoCleanBeforeApply: sourceSnapshot.clean,
+    };
+  } catch (err) {
+    if (worktreeAdded) {
+      await git(repoPath, ["worktree", "remove", worktreePath, "--force"]).catch(() => {});
+    }
+    await rm(worktreePath, { recursive: true, force: true }).catch(() => {});
+    await git(repoPath, ["branch", "-D", branchName]).catch(() => {});
+    throw err;
+  }
+}
+
+/** Create an isolated run worktree starting from an existing checkpoint commit. */
+export async function createRunWorktreeAtCommit(
+  repoPath: string,
+  runDir: string,
+  runId: string,
+  startCommit: string,
+  baseCommit: string,
+): Promise<WorktreeInfo> {
+  const setupStartedAt = Date.now();
+  const sourceSnapshot = await captureRepositorySnapshot(repoPath);
+  const branchName = `verdikt/${runId}`;
+  const worktreePath = resolve(join(runDir, "workspace"));
+  const evidenceDir = resolve(join(runDir, "evidence"));
+  let worktreeAdded = false;
+  try {
+    await mkdir(evidenceDir, { recursive: true });
+    await git(repoPath, ["worktree", "add", "--detach", worktreePath, startCommit]);
+    worktreeAdded = true;
+    await git(worktreePath, ["checkout", "-b", branchName]);
+    return {
+      worktreePath,
+      branchName,
+      baseCommit,
+      evidenceDir,
+      setupDurationMs: Date.now() - setupStartedAt,
+      warmed: false,
+      repoPath: sourceSnapshot.repoPath,
+      repoHead: sourceSnapshot.head,
+      repoStatus: sourceSnapshot.status,
+      repoFingerprint: sourceSnapshot.fingerprint,
+      originalRepoCleanBeforeApply: sourceSnapshot.clean,
+    };
+  } catch (err) {
+    if (worktreeAdded) {
+      await git(repoPath, ["worktree", "remove", worktreePath, "--force"]).catch(() => {});
+    }
+    await rm(worktreePath, { recursive: true, force: true }).catch(() => {});
+    await git(repoPath, ["branch", "-D", branchName]).catch(() => {});
+    throw err;
+  }
+}
+
+/** Restore an isolated worktree to an exact checkpoint commit. */
+export async function resetRunWorktreeToCommit(
+  worktreePath: string,
+  commit: string,
+): Promise<void> {
+  if (!/^[a-f0-9]{7,64}$/i.test(commit)) throw new Error("Invalid checkpoint commit");
+  await git(worktreePath, ["reset", "--hard", commit]);
+  await git(worktreePath, ["clean", "-fd"]);
 }
 
 /**
@@ -94,11 +195,20 @@ export async function captureIterationDiff(
   ]);
   const untracked = await git(worktreePath, ["ls-files", "--others", "--exclude-standard"]);
 
-  const changedFiles = [...changedCommitted.split("\n"), ...untracked.split("\n")]
+  const untrackedFiles = untracked
+    .split("\n")
     .filter(Boolean)
-    .filter((f) => !f.startsWith("node_modules/") && !f.startsWith(".git/"));
+    .filter((f) => !isExcludedChangedFile(f));
+
+  const changedFiles = [...changedCommitted.split("\n"), ...untrackedFiles]
+    .filter(Boolean)
+    .filter((f) => !isExcludedChangedFile(f));
 
   const uniqueFiles = [...new Set(changedFiles)].sort();
+
+  if (untrackedFiles.length > 0) {
+    await git(worktreePath, ["add", "-N", "--", ...untrackedFiles]);
+  }
 
   // Get numstat for lines added/deleted
   let linesAdded = 0;
@@ -136,29 +246,63 @@ async function streamDiffToFile(
   const { spawn } = await import("node:child_process");
   const { createWriteStream } = await import("node:fs");
 
-  return new Promise<void>((resolve, _reject) => {
+  return new Promise<void>((resolve, reject) => {
     const child = spawn("git", ["diff", ref, "--", ...excludes], {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
     });
     const stream = createWriteStream(outputPath);
+    let stderr = "";
+    let childClosed = false;
+    let streamFinished = false;
+    let settled = false;
+
+    const settle = (err?: Error) => {
+      if (settled) return;
+      if (err) {
+        settled = true;
+        if (!streamFinished) stream.end();
+        reject(err);
+        return;
+      }
+      if (childClosed && streamFinished) {
+        settled = true;
+        resolve();
+      }
+    };
 
     child.stdout?.pipe(stream);
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    stream.on("finish", () => {
+      streamFinished = true;
+      settle();
+    });
+    stream.on("error", (err) => {
+      settle(new Error(`Failed to write diff patch ${outputPath}:\n${err.message}`));
+    });
 
     child.on("close", (code) => {
-      stream.end();
-      if (code === 0 || code === 1) {
-        resolve(); // 0 = no diff, 1 = has diff
-      } else {
-        resolve(); // Don't fail the run for diff issues
+      if (code !== 0) {
+        settle(new Error(`git diff ${ref} failed:\n${stderr || `exit ${code}`}`));
+        return;
       }
+      childClosed = true;
+      if (!streamFinished) stream.end();
+      settle();
     });
 
-    child.on("error", () => {
-      stream.end();
-      resolve(); // Don't fail the run for diff issues
+    child.on("error", (err) => {
+      settle(new Error(`git diff ${ref} failed:\n${err.message}`));
     });
   });
+}
+
+function isExcludedChangedFile(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, "/");
+  const excluded = ["node_modules", ".git", ".verdikt", "dist", "build", "coverage", ".vite"];
+  return excluded.some((dir) => normalized === dir || normalized.startsWith(`${dir}/`));
 }
 
 /**
@@ -176,6 +320,7 @@ export async function checkpointIteration(
       "commit",
       "-m",
       `verdikt: iteration ${iterationIndex}`,
+      "--no-gpg-sign",
       "--allow-empty",
     ]);
   }
@@ -183,10 +328,17 @@ export async function checkpointIteration(
 }
 
 /**
- * Get the final diff between the base commit and the current state.
- * Excludes non-source directories to avoid maxBuffer issues.
+ * Write the final diff between the base commit and HEAD to a patch file.
+ *
+ * Streams the diff directly to disk — the final patch of a real run can be
+ * arbitrarily large (lockfiles, generated code), so it must never pass
+ * through an in-process buffer with a size cap.
  */
-export async function getFinalPatch(worktreePath: string, baseCommit: string): Promise<string> {
+export async function writeFinalPatch(
+  worktreePath: string,
+  baseCommit: string,
+  outputPath: string,
+): Promise<void> {
   const excludes = [
     ":(exclude)node_modules",
     ":(exclude).git",
@@ -196,7 +348,7 @@ export async function getFinalPatch(worktreePath: string, baseCommit: string): P
     ":(exclude)coverage",
     ":(exclude).vite",
   ];
-  return git(worktreePath, ["diff", `${baseCommit}..HEAD`, "--", ...excludes]);
+  await streamDiffToFile(worktreePath, outputPath, excludes, `${baseCommit}..HEAD`);
 }
 
 /**
@@ -208,14 +360,14 @@ export async function applyFinalPatch(
   worktreePath: string,
   baseCommit: string,
 ): Promise<void> {
-  const patch = await getFinalPatch(worktreePath, baseCommit);
-  if (!patch.trim()) {
+  const tmpPatch = join(worktreePath, ".final.patch");
+  await writeFinalPatch(worktreePath, baseCommit, tmpPatch);
+
+  const { stat } = await import("node:fs/promises");
+  const patchStat = await stat(tmpPatch);
+  if (patchStat.size === 0) {
     return; // No changes to apply
   }
-
-  // Write patch to temp file and apply
-  const tmpPatch = join(worktreePath, ".final.patch");
-  await writeFile(tmpPatch, patch, "utf-8");
 
   // Apply with --3way for merge resilience
   await git(repoPath, ["apply", "--3way", tmpPatch]);
@@ -248,6 +400,12 @@ export async function discardRun(
   } catch {
     // Branch might not exist, that's OK
   }
+
+  const warmRoot = resolve(join(worktreePath, ".."));
+  const warmParent = resolve(join(warmRoot, ".."));
+  if (warmParent.endsWith(`${requirePathSeparator()}.warm`)) {
+    await rm(warmRoot, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 /**
@@ -270,6 +428,10 @@ export async function getTestFiles(repoPath: string): Promise<string[]> {
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
+function requirePathSeparator(): string {
+  return process.platform === "win32" ? "\\" : "/";
+}
+
 export async function getHeadCommit(repoPath: string): Promise<string> {
   const hash = await git(repoPath, ["rev-parse", "HEAD"]);
   return hash.trim();
@@ -284,7 +446,9 @@ async function git(cwd: string, args: string[]): Promise<string> {
     execFile(
       "git",
       args,
-      { cwd, encoding: "utf-8", timeout: 120_000 },
+      // Defensive maxBuffer: bulk diff output goes through streamDiffToFile,
+      // but name lists on very large changes can still exceed the 1MB default.
+      { cwd, encoding: "utf-8", timeout: 120_000, maxBuffer: 16 * 1024 * 1024 },
       (err: Error | null, stdout: string, stderr: string) => {
         if (err) {
           reject(new Error(`git ${args.join(" ")} failed:\n${stderr || err.message}`));

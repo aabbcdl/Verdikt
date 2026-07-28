@@ -1,0 +1,13 @@
+{
+  "id": "fix-sum-bug",
+  "goal": "Fix the sum function so it correctly adds two numbers instead of subtracting them",
+  "repoPath": ".",
+  "acceptance": {
+    "steps": [{ "id": "test", "command": "npx", "args": ["vitest", "run"] }]
+  },
+  "maxIterations": 3,
+  "maxBudgetUsd": 2,
+  "integrity": {
+    "allowTestChanges": false
+  }
+}

@@ -14,3 +14,13 @@ export { handleResume } from "./resume.js";
 export { handleDoctor } from "./doctor.js";
 export { handleDashboard } from "./dashboard.js";
 export { handleAnalyze } from "./analyze.js";
+export { handleApp } from "./app.js";
+export { handleStress } from "./stress.js";
+
+export { handleApprove, handleReject } from "./approval.js";
+export { handleVerifyEvidence } from "./evidence.js";
+
+export { handleNote } from "./note.js";
+export { handleFork, handleRewind } from "./checkpoint.js";
+
+export { handleWarm } from "./warm.js";

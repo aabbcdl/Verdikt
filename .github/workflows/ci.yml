@@ -8,14 +8,21 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
 
     strategy:
+      fail-fast: false
       matrix:
+        # Windows is a first-class target: the driver, judges, and lock code
+        # all have win32-specific paths that a Linux-only matrix never runs.
+        os: [ubuntu-latest, windows-latest]
         node-version: [20]
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
@@ -23,19 +30,20 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
-        run: pnpm biome check .
+      - name: Quality gates
+        if: runner.os == 'Linux'
+        run: pnpm quality
 
-      - name: Build
-        run: pnpm build
+      - name: Coverage
+        if: runner.os == 'Linux'
+        run: pnpm test:coverage
 
-      - name: Test
-        run: pnpm test
+      - name: Lint, build and test (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          pnpm lint
+          pnpm build
+          pnpm test

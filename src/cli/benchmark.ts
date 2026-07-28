@@ -4,16 +4,16 @@
 
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { getFlag, hasFlag, parseArgs } from "./parseArgs.js";
 
 export async function handleBenchmark(args: string[]): Promise<void> {
-  const suiteIdx = args.indexOf("--suite");
-  if (suiteIdx === -1 || !args[suiteIdx + 1]) {
-    console.error("Error: --suite <file> is required");
-    console.error("Usage: verdikt benchmark --suite <suite-file.json>");
-    process.exit(1);
-  }
-
-  const suitePath = resolve(args[suiteIdx + 1]);
+  const parsed = parseArgs(args, {
+    required: ["suite"],
+    optional: ["out"],
+    boolean: ["dry-run"],
+    positional: { max: 0 },
+  });
+  const suitePath = resolve(getFlag(parsed, "suite", ""));
 
   if (!existsSync(suitePath)) {
     console.error(`\n❌ Suite file not found: ${suitePath}`);
@@ -22,8 +22,9 @@ export async function handleBenchmark(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const dryRun = args.includes("--dry-run");
-  const outDir = args.includes("--out") ? resolve(args[args.indexOf("--out") + 1]) : undefined;
+  const dryRun = hasFlag(parsed, "dry-run");
+  const outValue = getFlag(parsed, "out", "");
+  const outDir = outValue ? resolve(outValue) : undefined;
 
   const { loadSuite, runBenchmark } = await import("../benchmark/runner.js");
 

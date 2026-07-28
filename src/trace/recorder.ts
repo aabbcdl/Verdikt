@@ -14,8 +14,11 @@
 
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import type { IterationRecord, RunResult, StopReason, TaskSpec } from "../types.js";
+import { readJsonFile, writeJsonAtomic } from "./atomicJson.js";
+
+const RUN_ID_PATTERN = /^[a-zA-Z0-9\-_]{1,64}$/;
 
 /**
  * Generate a short run ID from timestamp.
@@ -32,7 +35,12 @@ export function createRunId(): string {
  * Initialize the state directory for a run.
  */
 export async function initRun(stateDir: string, runId: string): Promise<string> {
-  const runDir = join(stateDir, runId);
+  const rootDir = resolve(stateDir);
+  const runDir = resolve(rootDir, runId);
+  if (!RUN_ID_PATTERN.test(runId) || !isPathInside(rootDir, runDir)) {
+    throw new Error("Invalid run ID");
+  }
+
   await mkdir(runDir, { recursive: true });
   return runDir;
 }
@@ -52,10 +60,16 @@ export async function recordIteration(runDir: string, record: IterationRecord): 
  * M3: Produces a rich summary.json consumable by UI and benchmark.
  */
 export async function writeSummary(runDir: string, result: RunResult): Promise<void> {
+  const task = await readSavedTask(runDir);
   const summary = {
     // Run metadata
     runId: result.runId ?? null,
     taskId: result.taskId ?? null,
+    goal: task?.goal ?? null,
+    repoPath: task?.repoPath ?? null,
+    runSource: task?.runSource ?? "unknown",
+    stages: task?.stages ?? [],
+    task: task ?? null,
     timestamp: new Date().toISOString(),
 
     // Status
@@ -66,6 +80,8 @@ export async function writeSummary(runDir: string, result: RunResult): Promise<v
     totalIterations: result.iterations.length,
     totalDurationMs: result.totalDurationMs,
     totalCostUsd: result.totalCostUsd,
+    usageStatus: result.usageStatus ?? result.usage?.status ?? "unknown",
+    usage: result.usage ?? null,
 
     // Workspace (M3)
     workspace: result.workspace ?? null,
@@ -81,44 +97,99 @@ export async function writeSummary(runDir: string, result: RunResult): Promise<v
 
     // Semantic risk (M4)
     semanticRisk: result.semanticRisk ?? null,
+    stageProgress: result.stageProgress ?? null,
+    approvalRequest: result.approvalRequest ?? null,
+    evidenceManifestPath: result.evidenceManifestPath ?? null,
+    reviewOnly: result.reviewOnly ?? task?.taskMode === "review",
+    reviewReport: result.reviewReport ?? null,
+    partialIteration: result.partialIteration ?? null,
+    providerError: result.providerError ?? null,
+    resumable: result.resumable ?? false,
+    currentPhase: result.currentPhase ?? null,
 
     // Per-iteration summary
-    iterations: result.iterations.map((iter) => ({
-      index: iter.index,
-      durationMs: iter.durationMs,
-      costUsd: iter.costUsd,
+    iterations: result.iterations.map((iter) => {
+      const failedChecks = blockingFailedChecks(iter.judge);
+      return {
+        index: iter.index,
+        stageId: iter.stageId ?? null,
+        durationMs: iter.durationMs,
+        costUsd: iter.costUsd ?? null,
+        usageStatus: iter.usageStatus ?? iter.usage?.status ?? "unknown",
+        usage: iter.usage ?? null,
 
-      // Judge
-      judge: {
-        passed: iter.judge.passed,
-        exitCode: iter.judgeExitCode ?? iter.judge.checks[0]?.exitCode ?? null,
-        failedChecks: iter.judge.checks.filter((c) => !c.passed).map((c) => c.name),
-        summary: iter.judge.passed
-          ? `${iter.judge.checks.length}/${iter.judge.checks.length} passed`
-          : `${iter.judge.checks.filter((c) => !c.passed).length}/${iter.judge.checks.length} failed`,
-      },
+        // Judge
+        judge: {
+          passed: iter.judge.passed,
+          exitCode: iter.judgeExitCode ?? iter.judge.checks[0]?.exitCode ?? null,
+          failedChecks: failedChecks.map((c) => c.name),
+          summary: summarizeJudge(iter.judge, failedChecks.length),
+        },
 
-      // Verifier (M3)
-      verifier: {
-        done: iter.verifierVerdict.done,
-        problems: iter.verifierVerdict.problems,
-        nextInstruction: iter.verifierVerdict.nextInstruction,
-      },
+        // Verifier (M3)
+        verifier: {
+          done: iter.verifierVerdict.done,
+          problems: iter.verifierVerdict.problems,
+          nextInstruction: iter.verifierVerdict.nextInstruction,
+        },
 
-      // Patch (M3)
-      patch: {
-        path: iter.patchPath ?? null,
-        filesChanged: iter.changedFiles,
-        linesAdded: iter.linesAdded ?? null,
-        linesDeleted: iter.linesDeleted ?? null,
-      },
+        // Patch (M3)
+        patch: {
+          path: iter.patchPath ?? null,
+          filesChanged: iter.changedFiles,
+          linesAdded: iter.linesAdded ?? null,
+          linesDeleted: iter.linesDeleted ?? null,
+        },
 
-      // Integrity (M3)
-      integrity: iter.integrity ?? { status: "ok", criticalCount: 0, warningCount: 0, issues: [] },
-    })),
+        // Integrity (M3)
+        integrity: iter.integrity ?? {
+          status: "ok",
+          criticalCount: 0,
+          warningCount: 0,
+          issues: [],
+        },
+      };
+    }),
   };
 
-  await writeFile(join(runDir, "summary.json"), JSON.stringify(summary, null, 2));
+  await writeJsonAtomic(join(runDir, "summary.json"), summary, { backup: true });
+}
+
+async function readSavedTask(runDir: string): Promise<TaskSpec | null> {
+  for (const fileName of ["task.json", "normalizedTask.json"]) {
+    try {
+      const raw = await readFile(join(runDir, fileName), "utf-8");
+      return JSON.parse(raw) as TaskSpec;
+    } catch {
+      // Try the next compatible task file.
+    }
+  }
+  return null;
+}
+
+function blockingFailedChecks(judge: RunResult["iterations"][number]["judge"]) {
+  const optionalStepIds = new Set(
+    judge.stepResults?.filter((step) => !step.required).map((step) => step.id) ?? [],
+  );
+  return judge.checks.filter((check) => !check.passed && !optionalStepIds.has(check.name));
+}
+
+function summarizeJudge(
+  judge: RunResult["iterations"][number]["judge"],
+  blockingFailureCount: number,
+): string {
+  if (judge.stepResults) {
+    const requiredSteps = judge.stepResults.filter((step) => step.required);
+    const requiredPassed = requiredSteps.filter((step) => step.passed).length;
+    if (judge.passed) {
+      return `${requiredPassed}/${requiredSteps.length} required passed`;
+    }
+    return `${blockingFailureCount}/${requiredSteps.length} required failed`;
+  }
+
+  return judge.passed
+    ? `${judge.checks.length}/${judge.checks.length} passed`
+    : `${blockingFailureCount}/${judge.checks.length} failed`;
 }
 
 /**
@@ -135,19 +206,51 @@ export interface RunState {
   totalCostUsd: number;
   /** Total duration so far */
   totalDurationMs: number;
+  /** Whether cost/token accounting is complete so far. */
+  usageStatus?: import("../types.js").UsageStatus;
+  /** Aggregated usage so far. */
+  usage?: import("../types.js").UsageSummary;
   /** Timestamp of last save */
   lastSavedAt: string;
   /** Whether worktree was used */
   useWorktree: boolean;
   /** Whether integrity checks are enabled */
   useIntegrity: boolean;
+  phase?:
+    | "ready"
+    | "running"
+    | "between_iterations"
+    | "waiting_approval"
+    | "stopped"
+    | "interrupted"
+    | "error";
+  currentPhase?: import("../types.js").RunAgentPhase;
+  partialIteration?: import("../types.js").PartialIterationRecord;
+  currentStageId?: string;
+  stageRuntime?: import("../types.js").StageRuntimeState;
+  approvalRequest?: import("../types.js").ApprovalRequest;
+  lastError?: string;
+  /** Isolated workspace metadata needed to resume safely without touching the source repo */
+  worktree?: {
+    worktreePath: string;
+    branchName: string;
+    baseCommit: string;
+    evidenceDir: string;
+    setupDurationMs?: number;
+    warmed?: boolean;
+    repoPath?: string;
+    repoHead?: string;
+    repoStatus?: string;
+    repoFingerprint?: string;
+    originalRepoCleanBeforeApply?: boolean;
+  };
 }
 
 /**
  * Save run state for resume capability.
  */
 export async function saveRunState(runDir: string, state: RunState): Promise<void> {
-  await writeFile(join(runDir, "state.json"), JSON.stringify(state, null, 2));
+  await writeJsonAtomic(join(runDir, "state.json"), state, { backup: true });
 }
 
 /**
@@ -155,24 +258,68 @@ export async function saveRunState(runDir: string, state: RunState): Promise<voi
  * Returns null if no state file exists (run was completed or never started).
  */
 export async function loadRunState(runDir: string): Promise<RunState | null> {
-  const statePath = join(runDir, "state.json");
-  if (!existsSync(statePath)) return null;
-  try {
-    const raw = await readFile(statePath, "utf-8");
-    return JSON.parse(raw) as RunState;
-  } catch {
-    // State file missing or malformed — not resumable
-    return null;
+  return readJsonFile<RunState>(join(runDir, "state.json"));
+}
+
+export async function loadRecordedIterations(runDir: string): Promise<IterationRecord[]> {
+  const filePath = join(runDir, "iterations.jsonl");
+  if (!existsSync(filePath)) return [];
+  const raw = await readFile(filePath, "utf-8").catch(() => "");
+  const iterations: IterationRecord[] = [];
+  for (const line of raw.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    try {
+      const parsed = JSON.parse(line) as IterationRecord;
+      if (typeof parsed.index === "number") iterations.push(parsed);
+    } catch {
+      // A process can stop between append writes. Preserve all complete lines.
+    }
   }
+  return iterations.sort((a, b) => a.index - b.index);
+}
+
+export async function truncateRecordedIterations(
+  runDir: string,
+  maxIteration: number,
+): Promise<IterationRecord[]> {
+  const kept = (await loadRecordedIterations(runDir)).filter(
+    (record) => record.index <= maxIteration,
+  );
+  const content = kept.map((record) => JSON.stringify(record)).join("\n");
+  // Atomic replace: a crash mid-rewind must not destroy the iteration history.
+  const { writeTextAtomic } = await import("./atomicJson.js");
+  await writeTextAtomic(join(runDir, "iterations.jsonl"), content ? `${content}\n` : "");
+  return kept;
+}
+
+export async function validateResumeState(
+  runDir: string,
+  state: RunState,
+): Promise<{ valid: true } | { valid: false; reason: string }> {
+  if (!state.useWorktree) return { valid: true };
+  if (!state.worktree) return { valid: false, reason: "saved workspace metadata is missing" };
+  const stateRoot = resolve(runDir, "..");
+  const worktreePath = resolve(state.worktree.worktreePath);
+  if (!isPathInside(stateRoot, worktreePath)) {
+    return { valid: false, reason: "saved workspace is outside the Verdikt state directory" };
+  }
+  if (!existsSync(worktreePath)) {
+    return { valid: false, reason: "saved workspace no longer exists" };
+  }
+  return { valid: true };
 }
 
 /**
- * Check if a run is resumable (has state file and no summary).
+ * Check if a run is resumable: a valid state.json is the single criterion.
+ *
+ * A summary.json does NOT disqualify a run — interrupted and provider_error
+ * runs intentionally write both a summary (for history) and state (for
+ * continuation). See trace/lifecycle.ts for the full status derivation.
  */
 export async function isRunResumable(runDir: string): Promise<boolean> {
-  const statePath = join(runDir, "state.json");
-  const summaryPath = join(runDir, "summary.json");
-  return existsSync(statePath) && !existsSync(summaryPath);
+  const state = await loadRunState(runDir);
+  if (!state) return false;
+  return (await validateResumeState(runDir, state)).valid;
 }
 
 /**
@@ -184,4 +331,9 @@ export async function clearRunState(runDir: string): Promise<void> {
     const { unlink } = await import("node:fs/promises");
     await unlink(statePath).catch(() => {});
   }
+}
+
+function isPathInside(basePath: string, targetPath: string): boolean {
+  const relativePath = relative(resolve(basePath), resolve(targetPath));
+  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
 }

@@ -8,20 +8,52 @@
  * - Skipped tests: it.skip, describe.skip, test.skip
  * - Focused tests: it.only, describe.only, test.only
  * - Deleted assertions: expect(...) count decreased
- * - Weakened assertions: toEqual→toBeDefined, toBe→toBeTruthy, etc.
+ * - Commented-out assertions and empty catch blocks (warnings)
  * - Deleted test files
  * - Modified test scripts in package.json
  */
 
 import { createHash } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
+import type { Dirent } from "node:fs";
+import { mkdir, readFile, readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
+import { readJsonFile, writeJsonAtomic } from "../trace/atomicJson.js";
 import type { IntegrityPolicy } from "../types.js";
+
+const TEST_FILE_PATTERN = /\.(test|spec)\.(c|m)?(ts|js)x?$/i;
+const TEST_FILE_GLOBS = [
+  "*.test.ts",
+  "*.test.tsx",
+  "*.test.js",
+  "*.test.jsx",
+  "*.test.mts",
+  "*.test.cts",
+  "*.test.mjs",
+  "*.test.cjs",
+  "*.spec.ts",
+  "*.spec.tsx",
+  "*.spec.js",
+  "*.spec.jsx",
+  "*.spec.mts",
+  "*.spec.cts",
+  "*.spec.mjs",
+  "*.spec.cjs",
+];
+const IGNORED_TEST_SCAN_DIRS = new Set([
+  ".git",
+  ".verdikt",
+  "node_modules",
+  "dist",
+  "build",
+  "coverage",
+  ".next",
+  "out",
+]);
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface TestBaseline {
-  /** Hash of each test file: relative path → sha256 */
+  /** Hash of each test file: relative path to sha256 */
   fileHashes: Map<string, string>;
   /** Number of expect() calls in each test file */
   assertionCounts: Map<string, number>;
@@ -29,6 +61,20 @@ export interface TestBaseline {
   configHashes: Map<string, string>;
   /** Test script from package.json */
   testScript?: string;
+  /** Hash of the complete package scripts object. */
+  packageScriptsHash?: string;
+  /** Files that are immutable for this run. */
+  protectedHashes?: Map<string, string>;
+  /** Files that are watched for non-blocking warnings. */
+  suspiciousHashes?: Map<string, string>;
+  protectedGlobs?: string[];
+  suspiciousGlobs?: string[];
+}
+
+export interface IntegrityCaptureOptions {
+  protectedFiles?: string[];
+  protectedGlobs?: string[];
+  suspiciousGlobs?: string[];
 }
 
 export interface IntegrityCheckResult {
@@ -49,10 +95,15 @@ export interface IntegrityViolation {
  * Capture the test baseline before a run starts.
  * Records file hashes, assertion counts, and config hashes.
  */
-export async function captureTestBaseline(repoPath: string): Promise<TestBaseline> {
+export async function captureTestBaseline(
+  repoPath: string,
+  options: IntegrityCaptureOptions = {},
+): Promise<TestBaseline> {
   const fileHashes = new Map<string, string>();
   const assertionCounts = new Map<string, number>();
   const configHashes = new Map<string, string>();
+  const protectedHashes = new Map<string, string>();
+  const suspiciousHashes = new Map<string, string>();
 
   // Hash all test files
   const testFiles = await findTestFiles(repoPath);
@@ -83,16 +134,44 @@ export async function captureTestBaseline(repoPath: string): Promise<TestBaselin
     }
   }
 
-  // Capture test script from package.json
+  // Capture the complete package scripts object, not just the test command.
   let testScript: string | undefined;
+  let packageScriptsHash: string | undefined;
   try {
     const pkg = JSON.parse(await readFile(join(repoPath, "package.json"), "utf-8"));
-    testScript = pkg.scripts?.test;
+    testScript = typeof pkg.scripts?.test === "string" ? pkg.scripts.test : undefined;
+    packageScriptsHash = sha256(JSON.stringify(pkg.scripts ?? {}));
   } catch {
     // No package.json
   }
 
-  return { fileHashes, assertionCounts, configHashes, testScript };
+  const repositoryFiles = await findRepositoryFiles(repoPath);
+  const explicitProtected = new Set(
+    (options.protectedFiles ?? []).map(normalizeRepositoryPath).filter(Boolean),
+  );
+  for (const file of repositoryFiles) {
+    if (
+      explicitProtected.has(file) ||
+      (options.protectedGlobs ?? []).some((pattern) => matchesGlob(file, pattern))
+    ) {
+      protectedHashes.set(file, sha256(await readFile(join(repoPath, file), "utf-8")));
+    }
+    if ((options.suspiciousGlobs ?? []).some((pattern) => matchesGlob(file, pattern))) {
+      suspiciousHashes.set(file, sha256(await readFile(join(repoPath, file), "utf-8")));
+    }
+  }
+
+  return {
+    fileHashes,
+    assertionCounts,
+    configHashes,
+    testScript,
+    packageScriptsHash,
+    protectedHashes,
+    suspiciousHashes,
+    protectedGlobs: [...(options.protectedGlobs ?? [])],
+    suspiciousGlobs: [...(options.suspiciousGlobs ?? [])],
+  };
 }
 
 // ── Integrity check ──────────────────────────────────────────────────────────
@@ -104,6 +183,49 @@ export async function captureTestBaseline(repoPath: string): Promise<TestBaselin
  * Anti-cheating rules (skip/only/deleted assertions) are ALWAYS enforced.
  * Policy controls whether test file content changes and config changes are allowed.
  */
+export async function saveTestBaseline(runDir: string, baseline: TestBaseline): Promise<void> {
+  await mkdir(runDir, { recursive: true });
+  await writeJsonAtomic(join(runDir, "integrity-baseline.json"), {
+    version: 1,
+    fileHashes: Object.fromEntries(baseline.fileHashes),
+    assertionCounts: Object.fromEntries(baseline.assertionCounts),
+    configHashes: Object.fromEntries(baseline.configHashes),
+    testScript: baseline.testScript,
+    packageScriptsHash: baseline.packageScriptsHash,
+    protectedHashes: Object.fromEntries(baseline.protectedHashes ?? []),
+    suspiciousHashes: Object.fromEntries(baseline.suspiciousHashes ?? []),
+    protectedGlobs: baseline.protectedGlobs ?? [],
+    suspiciousGlobs: baseline.suspiciousGlobs ?? [],
+  });
+}
+
+export async function loadTestBaseline(runDir: string): Promise<TestBaseline | null> {
+  const saved = await readJsonFile<Record<string, unknown>>(
+    join(runDir, "integrity-baseline.json"),
+  );
+  if (!saved || saved.version !== 1) return null;
+  if (!isStringRecord(saved.fileHashes) || !isNumberRecord(saved.assertionCounts)) return null;
+  if (!isStringRecord(saved.configHashes)) return null;
+  return {
+    fileHashes: new Map(Object.entries(saved.fileHashes)),
+    assertionCounts: new Map(
+      Object.entries(saved.assertionCounts).map(([file, count]) => [file, Number(count)]),
+    ),
+    configHashes: new Map(Object.entries(saved.configHashes)),
+    testScript: typeof saved.testScript === "string" ? saved.testScript : undefined,
+    packageScriptsHash:
+      typeof saved.packageScriptsHash === "string" ? saved.packageScriptsHash : undefined,
+    protectedHashes: isStringRecord(saved.protectedHashes)
+      ? new Map(Object.entries(saved.protectedHashes))
+      : new Map(),
+    suspiciousHashes: isStringRecord(saved.suspiciousHashes)
+      ? new Map(Object.entries(saved.suspiciousHashes))
+      : new Map(),
+    protectedGlobs: isStringArray(saved.protectedGlobs) ? saved.protectedGlobs : [],
+    suspiciousGlobs: isStringArray(saved.suspiciousGlobs) ? saved.suspiciousGlobs : [],
+  };
+}
+
 export async function checkTestIntegrity(
   repoPath: string,
   baseline: TestBaseline,
@@ -133,6 +255,12 @@ export async function checkTestIntegrity(
           violations.push(...antiCheatingOnly);
         } else {
           // Strict mode: any test file modification is suspicious
+          violations.push({
+            severity: "critical",
+            rule: "test-file-modified",
+            file,
+            detail: `Test file was modified: ${file}`,
+          });
           violations.push(...fileViolations);
         }
       }
@@ -147,14 +275,109 @@ export async function checkTestIntegrity(
     }
   }
 
-  // 2. Check config files
+  // 2. Check newly added test files
+  const currentTestFiles = await findTestFiles(repoPath);
+  for (const file of currentTestFiles) {
+    if (baseline.fileHashes.has(file)) continue;
+
+    try {
+      const content = await readFile(join(repoPath, file), "utf-8");
+      const fileViolations = await scanForCheating(file, content, baseline);
+
+      if (!allowTestChanges) {
+        violations.push({
+          severity: "critical",
+          rule: "test-file-added",
+          file,
+          detail: `Test file was added: ${file}`,
+        });
+        violations.push(...fileViolations);
+      } else {
+        const antiCheatingOnly = fileViolations.filter(
+          (v) => v.severity === "critical" && isAntiCheatingRule(v.rule),
+        );
+        violations.push(...antiCheatingOnly);
+      }
+    } catch {
+      // File disappeared between discovery and read; ignore this race.
+    }
+  }
+
+  // 3. Check explicitly protected and suspicious files.
+  const protectedHashes = baseline.protectedHashes ?? new Map<string, string>();
+  const suspiciousHashes = baseline.suspiciousHashes ?? new Map<string, string>();
+  const currentRepositoryFiles = await findRepositoryFiles(repoPath);
+  for (const [file, hash] of protectedHashes) {
+    try {
+      const content = await readFile(join(repoPath, file), "utf-8");
+      if (sha256(content) !== hash) {
+        violations.push({
+          severity: "critical",
+          rule: "protected-file-modified",
+          file,
+          detail: `Protected acceptance file was modified: ${file}`,
+        });
+      }
+    } catch {
+      violations.push({
+        severity: "critical",
+        rule: "protected-file-deleted",
+        file,
+        detail: `Protected acceptance file was deleted: ${file}`,
+      });
+    }
+  }
+  for (const file of currentRepositoryFiles) {
+    if (protectedHashes.has(file)) continue;
+    if ((baseline.protectedGlobs ?? []).some((pattern) => matchesGlob(file, pattern))) {
+      violations.push({
+        severity: "critical",
+        rule: "protected-file-added",
+        file,
+        detail: `A new protected file appeared: ${file}`,
+      });
+    }
+  }
+  for (const [file, hash] of suspiciousHashes) {
+    try {
+      const content = await readFile(join(repoPath, file), "utf-8");
+      if (sha256(content) !== hash) {
+        violations.push({
+          severity: "warning",
+          rule: "suspicious-file-modified",
+          file,
+          detail: `Suspicious file was modified: ${file}`,
+        });
+      }
+    } catch {
+      violations.push({
+        severity: "warning",
+        rule: "suspicious-file-deleted",
+        file,
+        detail: `Suspicious file was deleted: ${file}`,
+      });
+    }
+  }
+  for (const file of currentRepositoryFiles) {
+    if (suspiciousHashes.has(file)) continue;
+    if ((baseline.suspiciousGlobs ?? []).some((pattern) => matchesGlob(file, pattern))) {
+      violations.push({
+        severity: "warning",
+        rule: "suspicious-file-added",
+        file,
+        detail: `A new suspicious file appeared: ${file}`,
+      });
+    }
+  }
+
+  // 3. Check config files
   if (!allowConfigChanges) {
     for (const [file, hash] of baseline.configHashes) {
       try {
         const content = await readFile(join(repoPath, file), "utf-8");
         if (sha256(content) !== hash) {
           violations.push({
-            severity: "warning",
+            severity: "critical",
             rule: "config-modified",
             file,
             detail: `Test config file was modified: ${file}`,
@@ -162,7 +385,7 @@ export async function checkTestIntegrity(
         }
       } catch {
         violations.push({
-          severity: "warning",
+          severity: "critical",
           rule: "config-deleted",
           file,
           detail: `Config file was deleted: ${file}`,
@@ -171,20 +394,41 @@ export async function checkTestIntegrity(
     }
   }
 
-  // 3. Check test script
-  if (baseline.testScript && !allowPackageScriptChanges) {
+  // 4. Check test script
+  if (baseline.testScript !== undefined && !allowPackageScriptChanges) {
     try {
       const pkg = JSON.parse(await readFile(join(repoPath, "package.json"), "utf-8"));
-      const currentScript = pkg.scripts?.test;
-      if (currentScript && currentScript !== baseline.testScript) {
+      const currentScript = typeof pkg.scripts?.test === "string" ? pkg.scripts.test : undefined;
+      if (currentScript !== baseline.testScript) {
         violations.push({
           severity: "critical",
           rule: "test-script-modified",
-          detail: `Test script changed from "${baseline.testScript}" to "${currentScript}"`,
+          detail: `Test script changed from "${baseline.testScript}" to "${currentScript ?? "(removed)"}"`,
         });
       }
     } catch {
-      // No package.json
+      violations.push({
+        severity: "critical",
+        rule: "test-script-modified",
+        detail: "package.json containing the original test script is missing or unreadable",
+      });
+    }
+  }
+
+  if (baseline.packageScriptsHash !== undefined && !allowPackageScriptChanges) {
+    try {
+      const pkg = JSON.parse(await readFile(join(repoPath, "package.json"), "utf-8"));
+      const currentHash = sha256(JSON.stringify(pkg.scripts ?? {}));
+      if (currentHash !== baseline.packageScriptsHash) {
+        violations.push({
+          severity: "critical",
+          rule: "package-scripts-modified",
+          file: "package.json",
+          detail: "One or more package scripts changed after the integrity baseline was captured",
+        });
+      }
+    } catch {
+      // The existing test-script check reports an unreadable package.json.
     }
   }
 
@@ -251,31 +495,6 @@ async function scanForCheating(
     });
   }
 
-  // Check for weakened assertions (specific patterns)
-  const weakenPatterns = [
-    { pattern: /\.toEqual\(/g, replacement: /\.toBeDefined\(/, name: "toEqual→toBeDefined" },
-    { pattern: /\.toBe\(/g, replacement: /\.toBeTruthy\(/, name: "toBe→toBeTruthy" },
-    { pattern: /\.toBe\(/g, replacement: /\.toBeDefined\(/, name: "toBe→toBeDefined" },
-    { pattern: /\.toThrow\(/g, replacement: /\.toBeDefined\(/, name: "toThrow→toBeDefined" },
-    {
-      pattern: /\.toBeGreaterThan\(/g,
-      replacement: /\.toBeDefined\(/,
-      name: "toBeGreaterThan→toBeDefined",
-    },
-  ];
-  for (const { pattern: _pattern, name: _name } of weakenPatterns) {
-    // This is a simplified check — in production you'd want AST analysis
-    // For now, just flag if we see these suspicious patterns
-    if (
-      content.match(/\.toBeDefined\(\)/) &&
-      !content.match(/\.toBe\(/) &&
-      !content.match(/\.toEqual\(/)
-    ) {
-      // Only flag if toBe/toEqual disappeared and only toDefined remains
-      // This is intentionally conservative — real AST analysis would be more precise
-    }
-  }
-
   // Check for commented-out assertions
   const commentedAssertions = content.match(/\/\/\s*expect\(|\/\*\s*expect\(/g);
   if (commentedAssertions && commentedAssertions.length > 0) {
@@ -302,6 +521,23 @@ async function scanForCheating(
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+function normalizeRepositoryPath(file: string): string {
+  return file.replace(/\\/g, "/").replace(/^\.\//, "");
+}
+
+function matchesGlob(file: string, pattern: string): boolean {
+  const normalizedFile = normalizeRepositoryPath(file);
+  const normalizedPattern = normalizeRepositoryPath(pattern);
+  const globstarPlaceholder = "__VERDIKT_GLOBSTAR_PLACEHOLDER__";
+  const escaped = normalizedPattern
+    .replace(/\*\*/g, globstarPlaceholder)
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*/g, "[^/]*")
+    .replaceAll(globstarPlaceholder, ".*")
+    .replace(/\?/g, "[^/]");
+  return new RegExp(`^${escaped}$`).test(normalizedFile);
+}
 
 function sha256(content: string): string {
   return createHash("sha256").update(content, "utf-8").digest("hex");
@@ -331,21 +567,104 @@ function isAntiCheatingRule(rule: string): boolean {
 }
 
 async function findTestFiles(repoPath: string): Promise<string[]> {
+  const files = new Set<string>();
+  for (const file of await findGitTrackedTestFiles(repoPath)) files.add(file);
+  for (const file of await findFilesystemTestFiles(repoPath)) files.add(file);
+  return Array.from(files).sort();
+}
+
+async function findGitTrackedTestFiles(repoPath: string): Promise<string[]> {
   const { spawn } = await import("node:child_process");
   return new Promise<string[]>((resolve) => {
     let stdout = "";
-    const child = spawn(
-      "git",
-      ["ls-files", "*.test.ts", "*.test.js", "*.test.tsx", "*.test.jsx", "*.spec.ts", "*.spec.js"],
-      {
-        cwd: repoPath,
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
+    const child = spawn("git", ["ls-files", "-z", "--", ...TEST_FILE_GLOBS], {
+      cwd: repoPath,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     child.stdout?.on("data", (chunk: Buffer) => {
       stdout += chunk.toString();
     });
-    child.on("close", () => resolve(stdout.split("\n").filter(Boolean)));
+    child.on("close", () =>
+      resolve(
+        stdout
+          .split("\0")
+          .map(normalizeRelativeTestPath)
+          .filter((file): file is string => file !== null),
+      ),
+    );
     child.on("error", () => resolve([]));
   });
+}
+
+async function findFilesystemTestFiles(repoPath: string): Promise<string[]> {
+  const files: string[] = [];
+
+  async function walk(relativeDir: string): Promise<void> {
+    let entries: Dirent[];
+    try {
+      entries = await readdir(join(repoPath, relativeDir), { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      const relPath = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        if (IGNORED_TEST_SCAN_DIRS.has(entry.name)) continue;
+        await walk(relPath);
+        continue;
+      }
+
+      if (!entry.isFile() || !TEST_FILE_PATTERN.test(entry.name)) continue;
+      const normalized = normalizeRelativeTestPath(relPath);
+      if (normalized) files.push(normalized);
+    }
+  }
+
+  await walk("");
+  return files;
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return isRecord(value) && Object.values(value).every((item) => typeof item === "string");
+}
+
+function isNumberRecord(value: unknown): value is Record<string, number> {
+  return isRecord(value) && Object.values(value).every((item) => typeof item === "number");
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function findRepositoryFiles(repoPath: string): Promise<string[]> {
+  const files: string[] = [];
+  async function walk(relativeDir: string): Promise<void> {
+    let entries: Dirent[];
+    try {
+      entries = await readdir(join(repoPath, relativeDir), { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (IGNORED_TEST_SCAN_DIRS.has(entry.name)) continue;
+      const relPath = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) await walk(relPath);
+      else if (entry.isFile()) files.push(normalizeRepositoryPath(relPath));
+    }
+  }
+  await walk("");
+  return files.sort();
+}
+
+function normalizeRelativeTestPath(file: string): string | null {
+  const normalized = file.replace(/\\/g, "/");
+  if (!normalized || normalized.trim() !== normalized) return null;
+  if (normalized.startsWith("/") || /^[a-zA-Z]:/.test(normalized)) return null;
+  if (normalized.split("/").includes("..")) return null;
+  return normalized;
 }

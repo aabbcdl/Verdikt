@@ -1,60 +1,83 @@
 /**
  * Configuration loader for Verdikt.
- *
- * Reads from environment variables with sensible defaults.
- * No .env file parsing — use `dotenv` or shell exports if needed.
  */
 
 export interface VerdiktConfig {
-  /** Model to use for both executor and verifier */
   model: string;
-  /** Max iterations per run (overridable per task) */
   defaultMaxIterations: number;
-  /** Default idle timeout per Claude call in ms (resets on output) */
   defaultTimeoutMs: number;
-  /** Default absolute timeout per Claude call in ms (never resets, hard kill) */
+  defaultSoftTimeoutMs: number;
   defaultAbsoluteTimeoutMs: number;
-  /** Max retries for transient failures (network errors, timeouts) */
   maxRetries: number;
-  /** Directory for run artifacts */
   stateDir: string;
-  /** Max concurrent iterations (MVP is always 1) */
   concurrency: number;
-  /** Verbose logging */
   verbose: boolean;
 }
-
-const DEFAULTS: VerdiktConfig = {
-  model: process.env.VERDIKT_MODEL ?? "sonnet",
-  defaultMaxIterations: Number.parseInt(process.env.VERDIKT_MAX_ITERATIONS ?? "5", 10),
-  defaultTimeoutMs: Number.parseInt(process.env.VERDIKT_TIMEOUT_MS ?? "300000", 10), // 5 min
-  defaultAbsoluteTimeoutMs: Number.parseInt(
-    process.env.VERDIKT_ABSOLUTE_TIMEOUT_MS ?? "600000",
-    10,
-  ), // 10 min
-  maxRetries: Number.parseInt(process.env.VERDIKT_MAX_RETRIES ?? "2", 10),
-  stateDir: process.env.VERDIKT_STATE_DIR ?? ".verdikt",
-  concurrency: 1,
-  verbose: process.env.VERDIKT_VERBOSE === "1" || process.env.VERDIKT_VERBOSE === "true",
-};
 
 let cached: VerdiktConfig | null = null;
 
 export function getConfig(): VerdiktConfig {
-  if (!cached) {
-    cached = { ...DEFAULTS };
-  }
+  if (!cached) cached = loadConfigFromEnv();
   return { ...cached };
 }
 
-/**
- * Override config (useful for testing).
- */
 export function setConfig(overrides: Partial<VerdiktConfig>): VerdiktConfig {
-  cached = { ...DEFAULTS, ...overrides };
+  cached = { ...loadConfigFromEnv(), ...overrides };
   return { ...cached };
 }
 
 export function resetConfig(): void {
   cached = null;
+}
+
+function loadConfigFromEnv(): VerdiktConfig {
+  const defaultTimeoutMs = parseEnvInteger("VERDIKT_TIMEOUT_MS", 300_000, 1_000, 3_600_000);
+  const defaultSoftTimeoutMs = parseEnvInteger("VERDIKT_SOFT_TIMEOUT_MS", 120_000, 0, 3_600_000);
+  const defaultAbsoluteTimeoutMs = parseEnvInteger(
+    "VERDIKT_ABSOLUTE_TIMEOUT_MS",
+    600_000,
+    1_000,
+    7_200_000,
+  );
+  if (defaultSoftTimeoutMs > defaultTimeoutMs) {
+    throw new Error("VERDIKT_SOFT_TIMEOUT_MS must not exceed VERDIKT_TIMEOUT_MS");
+  }
+  if (defaultAbsoluteTimeoutMs < defaultTimeoutMs) {
+    throw new Error("VERDIKT_ABSOLUTE_TIMEOUT_MS must be at least VERDIKT_TIMEOUT_MS");
+  }
+  const model = process.env.VERDIKT_MODEL?.trim() || "sonnet";
+  const stateDir = process.env.VERDIKT_STATE_DIR?.trim() || ".verdikt";
+  const verbose = parseEnvBoolean("VERDIKT_VERBOSE", false);
+  return {
+    model,
+    defaultMaxIterations: parseEnvInteger("VERDIKT_MAX_ITERATIONS", 5, 1, 100),
+    defaultTimeoutMs,
+    defaultSoftTimeoutMs,
+    defaultAbsoluteTimeoutMs,
+    maxRetries: parseEnvInteger("VERDIKT_MAX_RETRIES", 2, 0, 10),
+    stateDir,
+    concurrency: 1,
+    verbose,
+  };
+}
+
+function parseEnvInteger(name: string, fallback: number, min: number, max: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  if (!/^-?\d+$/.test(raw.trim())) {
+    throw new Error(`${name} must be an integer between ${min} and ${max}; received "${raw}"`);
+  }
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < min || value > max) {
+    throw new Error(`${name} must be an integer between ${min} and ${max}; received "${raw}"`);
+  }
+  return value;
+}
+
+function parseEnvBoolean(name: string, fallback: boolean): boolean {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  if (raw === "1" || raw === "true") return true;
+  if (raw === "0" || raw === "false") return false;
+  throw new Error(`${name} must be one of 1, 0, true, or false; received "${raw}"`);
 }

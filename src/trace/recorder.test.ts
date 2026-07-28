@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -8,9 +8,11 @@ import {
   createRunId,
   initRun,
   isRunResumable,
+  loadRecordedIterations,
   loadRunState,
   recordIteration,
   saveRunState,
+  validateResumeState,
   writeSummary,
 } from "./recorder.js";
 
@@ -46,10 +48,12 @@ describe("Trace Recorder", () => {
       expect(runDir).toBe(join(tempDir, runId));
     });
 
-    it("creates nested directories if needed", async () => {
-      const runId = "deep/nested/run";
-      const runDir = await initRun(tempDir, runId);
-      expect(runDir).toBe(join(tempDir, runId));
+    it("rejects nested run IDs", async () => {
+      await expect(initRun(tempDir, "deep/nested/run")).rejects.toThrow("Invalid run ID");
+    });
+
+    it("rejects run IDs that try to leave the state directory", async () => {
+      await expect(initRun(tempDir, "../outside-run")).rejects.toThrow("Invalid run ID");
     });
   });
 
@@ -130,6 +134,119 @@ describe("Trace Recorder", () => {
       expect(summary.totalIterations).toBe(1);
       expect(summary.totalCostUsd).toBe(0.5);
     });
+
+    it("reads the legacy normalized task file when task.json is absent", async () => {
+      const runDir = await initRun(tempDir, "legacy-task-run");
+      const task: TaskSpec = {
+        id: "legacy-task",
+        goal: "Use the saved task",
+        repoPath: "C:\\repo",
+        acceptance: { testCommand: "node --version" },
+        maxIterations: 1,
+      };
+      await writeFile(join(runDir, "normalizedTask.json"), JSON.stringify(task), "utf-8");
+
+      await writeSummary(runDir, {
+        reason: "passed",
+        iterations: [],
+        totalDurationMs: 1,
+        totalCostUsd: 0,
+        runId: "legacy-task-run",
+        taskId: "legacy-task",
+      });
+
+      const summary = JSON.parse(await readFile(join(runDir, "summary.json"), "utf-8"));
+      expect(summary.goal).toBe(task.goal);
+      expect(summary.repoPath).toBe(task.repoPath);
+    });
+
+    it("persists structured provider failures for saved-run recovery", async () => {
+      const runDir = await initRun(tempDir, "provider-error-run");
+      await writeSummary(runDir, {
+        reason: "provider_error",
+        iterations: [],
+        totalDurationMs: 25,
+        totalCostUsd: 0,
+        runId: "provider-error-run",
+        taskId: "provider-error-task",
+        resumable: true,
+        providerError: {
+          category: "insufficient_credit",
+          statusCode: 402,
+          message: "Insufficient credit",
+          retryable: false,
+        },
+      });
+
+      const summary = JSON.parse(await readFile(join(runDir, "summary.json"), "utf-8"));
+      expect(summary.providerError).toEqual({
+        category: "insufficient_credit",
+        statusCode: 402,
+        message: "Insufficient credit",
+        retryable: false,
+      });
+    });
+
+    it("does not report optional structured step failures as blocking summary failures", async () => {
+      const runDir = await initRun(tempDir, "test-run");
+      const result: RunResult = {
+        reason: "passed",
+        iterations: [
+          {
+            index: 0,
+            executorOutput: "Done",
+            changedFiles: ["src/app.ts"],
+            judge: {
+              passed: true,
+              checks: [
+                { name: "test", passed: true, output: "", exitCode: 0, durationMs: 100 },
+                {
+                  name: "diagnostics",
+                  passed: false,
+                  output: "optional diagnostic failed",
+                  exitCode: 1,
+                  durationMs: 100,
+                },
+              ],
+              stepResults: [
+                {
+                  id: "test",
+                  passed: true,
+                  exitCode: 0,
+                  stdout: "",
+                  stderr: "",
+                  durationMs: 100,
+                  required: true,
+                },
+                {
+                  id: "diagnostics",
+                  passed: false,
+                  exitCode: 1,
+                  stdout: "",
+                  stderr: "optional diagnostic failed",
+                  durationMs: 100,
+                  required: false,
+                },
+              ],
+            },
+            verifierVerdict: { done: true, problems: [], nextInstruction: "" },
+            durationMs: 5000,
+          },
+        ],
+        totalDurationMs: 5000,
+        totalCostUsd: 0.5,
+        runId: "test-run",
+        taskId: "my-task",
+      };
+
+      await writeSummary(runDir, result);
+
+      const content = await readFile(join(runDir, "summary.json"), "utf-8");
+      const summary = JSON.parse(content);
+
+      expect(summary.iterations[0].judge.failedChecks).toEqual([]);
+      expect(summary.iterations[0].judge.summary).toBe("1/1 required passed");
+    });
   });
 
   describe("RunState persistence", () => {
@@ -152,6 +269,12 @@ describe("Trace Recorder", () => {
         lastSavedAt: "2026-01-01T00:00:00Z",
         useWorktree: true,
         useIntegrity: true,
+        worktree: {
+          worktreePath: "/tmp/verdikt-run/workspace",
+          branchName: "verdikt/test-run",
+          baseCommit: "abc123",
+          evidenceDir: "/tmp/verdikt-run/evidence",
+        },
       };
 
       await saveRunState(runDir, state);
@@ -161,6 +284,8 @@ describe("Trace Recorder", () => {
       expect(loaded?.task.id).toBe("test-task");
       expect(loaded?.nextIteration).toBe(2);
       expect(loaded?.totalCostUsd).toBe(1.5);
+      expect(loaded?.worktree?.worktreePath).toBe("/tmp/verdikt-run/workspace");
+      expect(loaded?.worktree?.baseCommit).toBe("abc123");
     });
 
     it("returns null when no state file exists", async () => {
@@ -195,7 +320,7 @@ describe("Trace Recorder", () => {
       expect(await isRunResumable(runDir)).toBe(true);
     });
 
-    it("returns false when summary exists (completed)", async () => {
+    it("stays true when a summary coexists with valid state (interrupted runs)", async () => {
       const runDir = await initRun(tempDir, "completed");
       await saveRunState(runDir, {
         task: { id: "t", goal: "g", repoPath: "/r", acceptance: {}, maxIterations: 1 },
@@ -210,7 +335,9 @@ describe("Trace Recorder", () => {
       const { writeFile } = await import("node:fs/promises");
       await writeFile(join(runDir, "summary.json"), "{}", "utf-8");
 
-      expect(await isRunResumable(runDir)).toBe(false);
+      // Interrupted/provider_error runs write BOTH summary and state — the
+      // summary must not disqualify resumption (see trace/lifecycle.ts).
+      expect(await isRunResumable(runDir)).toBe(true);
     });
 
     it("returns false when no state file", async () => {
@@ -241,6 +368,63 @@ describe("Trace Recorder", () => {
     it("does not throw when no state file exists", async () => {
       const runDir = await initRun(tempDir, "already-clear");
       await expect(clearRunState(runDir)).resolves.not.toThrow();
+    });
+  });
+
+  describe("resume history", () => {
+    it("loads all valid recorded iterations and tolerates a partial final line", async () => {
+      const runDir = await initRun(tempDir, "history-run");
+      const baseRecord: IterationRecord = {
+        index: 0,
+        executorOutput: "first",
+        changedFiles: ["src/a.ts"],
+        judge: { passed: false, checks: [] },
+        verifierVerdict: { done: false, problems: ["still failing"], nextInstruction: "fix it" },
+        durationMs: 10,
+      };
+      await recordIteration(runDir, baseRecord);
+      await recordIteration(runDir, { ...baseRecord, index: 1, executorOutput: "second" });
+      const { appendFile } = await import("node:fs/promises");
+      await appendFile(join(runDir, "iterations.jsonl"), "{partial", "utf-8");
+
+      const iterations = await loadRecordedIterations(runDir);
+
+      expect(iterations.map((iteration) => iteration.index)).toEqual([0, 1]);
+      expect(iterations[1]?.executorOutput).toBe("second");
+    });
+
+    it("refuses to advertise an isolated run as resumable when its workspace is missing", async () => {
+      const runDir = await initRun(tempDir, "missing-workspace");
+      const state = {
+        task: {
+          id: "test-task",
+          goal: "Fix the bug",
+          repoPath: "/tmp/repo",
+          acceptance: { testCommand: "npm test" },
+          maxIterations: 5,
+        },
+        instruction: "continue",
+        nextIteration: 1,
+        totalCostUsd: 0,
+        totalDurationMs: 0,
+        lastSavedAt: new Date().toISOString(),
+        useWorktree: true,
+        useIntegrity: false,
+        worktree: {
+          worktreePath: join(runDir, "workspace"),
+          branchName: "verdikt/missing-workspace",
+          baseCommit: "abc123",
+          evidenceDir: join(runDir, "evidence"),
+        },
+      };
+
+      await expect(validateResumeState(runDir, state)).resolves.toEqual(
+        expect.objectContaining({ valid: false, reason: expect.stringContaining("workspace") }),
+      );
+
+      const { mkdir } = await import("node:fs/promises");
+      await mkdir(state.worktree.worktreePath, { recursive: true });
+      await expect(validateResumeState(runDir, state)).resolves.toEqual({ valid: true });
     });
   });
 });

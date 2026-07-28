@@ -43,10 +43,15 @@ export function parseArgs(args: string[], spec: ArgSpec = {}): ParsedArgs {
     const arg = args[i];
 
     if (arg.startsWith("--")) {
-      const flagName = arg.slice(2);
+      const equalsIndex = arg.indexOf("=");
+      const flagName = arg.slice(2, equalsIndex === -1 ? undefined : equalsIndex);
+      const inlineValue = equalsIndex === -1 ? undefined : arg.slice(equalsIndex + 1);
 
       // Check if it's a known boolean flag
       if (spec.boolean?.includes(flagName)) {
+        if (inlineValue !== undefined) {
+          throw new Error(`Flag --${flagName} does not take a value.`);
+        }
         flags.set(flagName, true);
         i++;
         continue;
@@ -54,18 +59,24 @@ export function parseArgs(args: string[], spec: ArgSpec = {}): ParsedArgs {
 
       // Check if it's a known value flag
       if (spec.required?.includes(flagName) || spec.optional?.includes(flagName)) {
-        const value = args[i + 1];
-        if (!value || value.startsWith("--")) {
+        const value = inlineValue ?? args[i + 1];
+        if (!value || (inlineValue === undefined && value.startsWith("--"))) {
           throw new Error(`Flag --${flagName} requires a value.\nUsage: --${flagName} <value>`);
         }
         flags.set(flagName, value);
-        i += 2;
+        i += inlineValue === undefined ? 2 : 1;
         continue;
       }
 
       // Unknown flag
       throw new Error(
         `Unknown flag: --${flagName}\nKnown flags: ${[...allKnownFlags].map((f) => `--${f}`).join(", ")}`,
+      );
+    }
+
+    if (arg.startsWith("-")) {
+      throw new Error(
+        `Unknown flag: ${arg}\nKnown flags: ${[...allKnownFlags].map((f) => `--${f}`).join(", ")}`,
       );
     }
 

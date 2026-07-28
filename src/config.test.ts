@@ -1,55 +1,34 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { getConfig, resetConfig, setConfig } from "./config.js";
+import { afterEach, describe, expect, it } from "vitest";
+import { getConfig, resetConfig } from "./config.js";
 
-describe("Config", () => {
-  beforeEach(() => {
+describe("configuration", () => {
+  afterEach(() => {
+    Reflect.deleteProperty(process.env, "VERDIKT_MAX_ITERATIONS");
+    Reflect.deleteProperty(process.env, "VERDIKT_TIMEOUT_MS");
+    Reflect.deleteProperty(process.env, "VERDIKT_SOFT_TIMEOUT_MS");
+    Reflect.deleteProperty(process.env, "VERDIKT_ABSOLUTE_TIMEOUT_MS");
+    Reflect.deleteProperty(process.env, "VERDIKT_MAX_RETRIES");
+    Reflect.deleteProperty(process.env, "VERDIKT_VERBOSE");
     resetConfig();
   });
 
-  it("returns default config when no overrides", () => {
-    const config = getConfig();
-    expect(config.model).toBeDefined();
-    expect(config.defaultMaxIterations).toBe(5);
-    expect(config.defaultTimeoutMs).toBe(300000);
-    expect(config.stateDir).toBe(".verdikt");
-    expect(config.concurrency).toBe(1);
-    expect(config.verbose).toBe(false);
+  it("rejects NaN environment values instead of entering a run", () => {
+    process.env.VERDIKT_MAX_ITERATIONS = "not-a-number";
+    expect(() => getConfig()).toThrow("VERDIKT_MAX_ITERATIONS must be an integer");
   });
 
-  it("returns a copy of config (immutable)", () => {
-    const config1 = getConfig();
-    const config2 = getConfig();
-    expect(config1).toEqual(config2);
-    expect(config1).not.toBe(config2);
+  it("rejects timeout values outside safe bounds", () => {
+    process.env.VERDIKT_TIMEOUT_MS = "10";
+    expect(() => getConfig()).toThrow("VERDIKT_TIMEOUT_MS must be an integer");
   });
 
-  it("setConfig overrides specific fields", () => {
-    setConfig({ model: "opus", verbose: true });
-    const config = getConfig();
-    expect(config.model).toBe("opus");
-    expect(config.verbose).toBe(true);
-    // Other fields should remain default
-    expect(config.defaultMaxIterations).toBe(5);
-  });
-
-  it("setConfig merges with defaults", () => {
-    setConfig({ model: "haiku" });
-    const config = getConfig();
-    expect(config.model).toBe("haiku");
-    expect(config.stateDir).toBe(".verdikt");
-  });
-
-  it("resetConfig clears overrides", () => {
-    setConfig({ model: "opus" });
-    expect(getConfig().model).toBe("opus");
+  it("rejects inconsistent timeout ordering", () => {
+    process.env.VERDIKT_TIMEOUT_MS = "1000";
+    process.env.VERDIKT_SOFT_TIMEOUT_MS = "0";
+    process.env.VERDIKT_ABSOLUTE_TIMEOUT_MS = "1000";
+    expect(() => getConfig()).not.toThrow();
+    process.env.VERDIKT_SOFT_TIMEOUT_MS = "2000";
     resetConfig();
-    // After reset, should return defaults (which may be from env vars)
-    const config = getConfig();
-    expect(config).toBeDefined();
-  });
-
-  it("setConfig returns the new config", () => {
-    const result = setConfig({ model: "test-model" });
-    expect(result.model).toBe("test-model");
+    expect(() => getConfig()).toThrow("VERDIKT_SOFT_TIMEOUT_MS must not exceed");
   });
 });

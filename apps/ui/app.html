@@ -1,0 +1,2755 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verdikt 任务工作台</title>
+<style>
+
+  * { box-sizing: border-box; }
+
+  /* Sticky-nav compensation: anchored/auto scrolls land BELOW the floating nav. */
+  html { scroll-padding-top: 72px; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+  }
+
+  .app {
+    width: min(1120px, calc(100vw - 32px));
+    margin: 0 auto;
+    padding: 28px 0 40px;
+  }
+
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  h1 {
+    margin: 0 0 6px;
+    font-size: 28px;
+    line-height: 1.15;
+    color: var(--text-bright);
+    letter-spacing: 0;
+  }
+
+  .subtitle {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+
+
+  .panel {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    padding: 18px;
+  }
+
+  .panel h2 {
+    margin: 0 0 14px;
+    font-size: 16px;
+    color: var(--text-bright);
+  }
+
+  .form-row { margin-bottom: 14px; }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  label,
+  .form-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  input, textarea, select {
+    width: 100%;
+    padding: 10px 11px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+  }
+
+  textarea {
+    min-height: 108px;
+    resize: vertical;
+    line-height: 1.45;
+  }
+
+  input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: var(--blue);
+  }
+
+  .hint {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.45;
+  }
+
+  .steps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .step-row {
+    display: grid;
+    grid-template-columns: 86px 0.8fr 1.4fr 40px;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 9px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .btn:hover { border-color: var(--blue); color: var(--blue); }
+  .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .btn-primary { border-color: var(--blue); color: var(--blue); background: rgba(88, 166, 255, 0.14); }
+  .btn-danger { border-color: rgba(248, 81, 73, 0.7); color: var(--red); }
+  .btn-small { min-height: 36px; padding: 7px 10px; }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+
+
+
+
+  .preflight-panel {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding: 12px;
+    border: 1px solid rgba(63, 185, 80, 0.28);
+    border-radius: 6px;
+    background: rgba(63, 185, 80, 0.07);
+  }
+
+  .preflight-header,
+  .tool-row,
+  .workbench-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .preflight-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .preflight-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+
+  .safety-note {
+    margin: 12px 0 0;
+    padding: 10px 11px;
+    border: 1px solid rgba(210, 153, 34, 0.35);
+    border-radius: 6px;
+    background: rgba(210, 153, 34, 0.08);
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .status-idle { background: rgba(139, 148, 158, 0.15); color: var(--text-dim); }
+  .status-running { background: rgba(88, 166, 255, 0.15); color: var(--blue); }
+  .status-cancelling { background: rgba(210, 153, 34, 0.15); color: var(--yellow); }
+  .status-passed { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+  .status-failed { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+
+
+  .progress-bar {
+    width: 0%;
+    height: 100%;
+    background: var(--blue);
+    transition: width 0.25s ease;
+  }
+
+  .log-output {
+    min-height: 342px;
+    max-height: 430px;
+    overflow: auto;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #080b10;
+    color: #c9d1d9;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+  }
+
+  .result-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+
+
+
+
+
+
+  .phase-title {
+    color: var(--text-bright);
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+
+  .lane-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .lane-card {
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+  }
+
+  .lane-card strong {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text-bright);
+    font-size: 12px;
+  }
+
+  .lane-card div {
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+
+  .advice-box {
+    display: grid;
+    gap: 8px;
+    margin-top: 14px;
+    padding: 12px;
+    border: 1px solid rgba(88, 166, 255, 0.28);
+    border-radius: 6px;
+    background: rgba(88, 166, 255, 0.07);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .advice-title {
+    color: var(--text-bright);
+    font-weight: 700;
+  }
+
+  .advice-list {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--text-dim);
+  }
+
+  .workbench-list {
+    display: grid;
+    gap: 8px;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .workbench-toolbar {
+    display: grid;
+    align-items: stretch;
+    margin-bottom: 10px;
+  }
+
+  .filter-field {
+    min-width: 0;
+  }
+
+  .workbench-toolbar input,
+  .workbench-toolbar select {
+    min-height: 34px;
+    padding: 7px 9px;
+    font-size: 12px;
+  }
+
+  .run-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+  }
+
+  .run-item.active { border-color: var(--blue); }
+  .run-item.pinned { border-color: rgba(210, 153, 34, 0.75); }
+  .run-item.archived { opacity: 0.58; }
+  .run-title { color: var(--text-bright); font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
+  .run-meta { margin-top: 3px; color: var(--text-dim); font-size: 12px; overflow-wrap: anywhere; }
+  .run-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-self: start;
+    align-items: flex-start;
+    justify-content: flex-end;
+  }
+  .run-actions .btn { min-height: 30px; padding: 5px 8px; font-size: 12px; }
+
+  .tag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  .tag-chip {
+    padding: 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+
+  .patch-review {
+    color: #c9d1d9;
+    max-height: 360px;
+    overflow: auto;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #080b10;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+
+  .patch-review .diff-add { color: #7ee787; }
+  .patch-review .diff-del { color: #ffa198; }
+  .patch-review .diff-meta { color: #8b949e; }
+
+  .file-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .file-chip {
+    padding: 4px 7px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+
+  .risk-box {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 10px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .risk-low { border-color: rgba(63, 185, 80, 0.55); }
+  .risk-medium { border-color: rgba(210, 153, 34, 0.65); }
+  .risk-high { border-color: rgba(248, 81, 73, 0.7); }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  .stat-mini {
+    padding: 9px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+  }
+
+  .stat-mini strong {
+    display: block;
+    color: var(--text-bright);
+    font-size: 16px;
+  }
+
+  .stat-mini span {
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+
+  .agent-round {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .agent-card {
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .agent-card strong {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--text-bright);
+  }
+
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    .topbar { align-items: flex-start; flex-direction: column; }
+    .step-row { grid-template-columns: 1fr; }
+    .form-grid, .result-grid, .preflight-list, .lane-grid, .stats-grid { grid-template-columns: 1fr; }
+    .agent-round, .workbench-toolbar { grid-template-columns: 1fr; flex-direction: column; }
+  }
+
+  .runtime-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin: 10px 0 14px;
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+  .runtime-meta strong { color: var(--text); font-weight: 600; }
+  .approval-box {
+    margin-top: 14px;
+    padding: 14px;
+    border: 1px solid rgba(210, 153, 34, 0.55);
+    border-radius: 6px;
+    background: rgba(210, 153, 34, 0.09);
+  }
+  .approval-box[hidden] { display: none; }
+  .approval-title { margin-bottom: 6px; color: var(--yellow); font-weight: 700; }
+  .approval-categories { margin-top: 8px; color: var(--text-dim); font-size: 12px; }
+  .approval-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .approval-action-detail {
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .steering-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: end;
+  }
+  .steering-grid textarea { min-height: 74px; }
+  .checkpoint-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-top: 10px;
+  }
+  .checkpoint-row input { width: 110px; }
+  .timeline-list {
+    max-height: 420px;
+    overflow: auto;
+    display: grid;
+    gap: 8px;
+  }
+  .timeline-event {
+    display: grid;
+    grid-template-columns: 68px 145px minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.025);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .timeline-event .sequence { color: var(--accent); font-weight: 700; }
+  .timeline-event .time { color: var(--text-dim); }
+  .timeline-event .detail { overflow-wrap: anywhere; white-space: pre-wrap; }
+  .btn-success { border-color: rgba(63, 185, 80, 0.7); color: var(--green); }
+  .evidence-status { margin-top: 10px; min-height: 18px; color: var(--text-dim); font-size: 12px; }
+  .evidence-status.valid { color: var(--green); }
+  .evidence-status.invalid { color: var(--red); }
+  .run-note { margin-top: 4px; color: var(--yellow); font-size: 12px; line-height: 1.4; }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .form-notice {
+    margin: 12px 0;
+    padding: 10px 12px;
+    border: 1px solid #b8e2cb;
+    border-radius: 10px;
+    background: #edf8f2;
+    color: #1d5b3c;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .form-error-summary {
+    margin: 16px 0;
+    padding: 14px 16px;
+    border: 1px solid #efb3ae;
+    border-radius: 12px;
+    background: #fff3f2;
+    color: #8f2d2d;
+  }
+  .form-error-summary strong {
+    display: block;
+    margin-bottom: 6px;
+    color: #7f2424;
+  }
+  .form-error-summary ul {
+    margin: 0;
+    padding-left: 20px;
+    line-height: 1.55;
+  }
+  .field-error {
+    margin: 6px 0 0;
+    color: #b83232;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  [aria-invalid="true"] {
+    border-color: var(--red);
+    box-shadow: 0 0 0 2px rgba(214, 69, 69, 0.1);
+  }
+  .config-preview {
+    margin: 16px 0;
+    padding: 18px;
+    border: 1px solid #b9c9eb;
+    border-radius: 14px;
+    background: #f7faff;
+  }
+  .config-preview-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+  .config-preview-header h3 {
+    margin: 0 0 4px;
+    color: var(--text-bright);
+    font-size: 17px;
+  }
+  .config-preview-header p,
+  .config-preview-note {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .config-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .config-preview-item,
+  .config-preview-section {
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+  .config-preview-item span,
+  .config-preview-section > strong {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+  .config-preview-item strong,
+  .config-preview-section div {
+    color: var(--text-bright);
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  .config-preview-section {
+    grid-column: 1 / -1;
+  }
+  .config-preview-section ol {
+    margin: 6px 0 0;
+    padding-left: 22px;
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .config-preview-section code {
+    font-family: var(--mono);
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .config-preview-note {
+    margin-top: 12px;
+  }
+
+  /* Progressive workbench */
+  :root {
+    --bg: #f4f7fb;
+    --surface: #ffffff;
+    --surface-2: #f7f9fc;
+    --border: #dce3ec;
+    --text: #172033;
+    --text-dim: #647086;
+    --text-bright: #101828;
+    --green: #0b6f44;
+    --red: #b42318;
+    --yellow: #8a4f0f;
+    --blue: #246bfd;
+    --accent: #246bfd;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: "SF Mono", "Cascadia Code", Consolas, monospace;
+  }
+  body { background: var(--bg); }
+  .app { width: min(980px, calc(100vw - 32px)); padding: 22px 0 56px; }
+  .topbar { align-items: center; margin-bottom: 14px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--blue); color: #fff; font-weight: 800; }
+  h1 { font-size: 23px; }
+  .workspace-nav { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 5px; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 14px; background: rgba(255,255,255,.8); position: sticky; top: 8px; z-index: 20; box-shadow: 0 8px 24px rgba(30,50,80,.07); backdrop-filter: blur(12px); }
+  .nav-btn { min-height: 44px; border: 0; border-radius: 10px; background: transparent; color: var(--text-dim); font-weight: 700; cursor: pointer; }
+  .nav-btn.active { background: #fff; color: var(--blue); box-shadow: 0 2px 10px rgba(30,50,80,.09); }
+  .view[hidden], [hidden] { display: none !important; }
+  .layout { display: block; }
+  .panel { padding: 24px; border-radius: 16px; box-shadow: 0 8px 28px rgba(30,50,80,.06); }
+  .panel + .panel { margin-top: 14px; }
+  .panel-heading { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom:22px; }
+  .panel-heading h2 { margin-bottom:5px; font-size:22px; }
+  .panel-heading p { margin:0; color:var(--text-dim); line-height:1.5; }
+  .task-mode-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px; }
+  .mode-card { display:block; padding:15px; border:1px solid var(--border); border-radius:12px; background:var(--surface-2); cursor:pointer; }
+  .mode-card:has(input:checked) { border-color:var(--blue); background:#edf4ff; box-shadow:0 0 0 2px rgba(36,107,253,.08); }
+  .mode-card input { width:auto; margin-right:8px; }
+  .mode-card strong { color:var(--text-bright); }
+  .mode-card span { display:block; margin:7px 0 0 24px; color:var(--text-dim); font-size:12px; line-height:1.45; }
+  input, textarea, select { background:#fff; color:var(--text); border-color:var(--border); border-radius:9px; min-height:44px; }
+  textarea { min-height:116px; }
+  .form-row { margin-bottom:18px; }
+  label, .form-label { color:#354159; font-weight:650; }
+  .advanced { margin:18px 0; border:1px solid var(--border); border-radius:12px; background:var(--surface-2); overflow:hidden; }
+  .advanced > summary { padding:15px 17px; cursor:pointer; color:var(--text-bright); font-weight:750; }
+  .advanced-content { padding:0 17px 17px; }
+  .secondary-actions { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+  .primary-run { width:100%; min-height:58px; margin-top:14px; border:0; border-radius:12px; background:var(--blue); color:white; font-size:17px; box-shadow:0 10px 24px rgba(36,107,253,.22); }
+  .primary-run:hover { color:white; filter:brightness(.97); }
+  .safety-note { margin:12px 0 0; text-align:center; }
+  .status-hero { border:1px solid var(--border); border-radius:16px; padding:24px; background:linear-gradient(135deg,#fff,#f6f9ff); }
+  .status-hero.attention { border-color:#e5b75d; background:#fffaf0; }
+  .status-hero.stalled { border-color:#e3914b; background:#fff8f1; }
+  .status-top { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+  .eyebrow { color:var(--text-dim); font-size:12px; font-weight:750; text-transform:uppercase; letter-spacing:.06em; }
+  .phase-title { margin-top:6px; font-size:24px; }
+  .phase-detail { margin-top:8px; font-size:14px; max-width:680px; }
+  .runtime-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:18px; }
+  .runtime-item { padding:12px; border-radius:10px; background:rgba(255,255,255,.8); border:1px solid var(--border); }
+  .runtime-item span { display:block; color:var(--text-dim); font-size:11px; margin-bottom:5px; }
+  .runtime-item strong { font-size:14px; }
+  .progress-shell { margin-top:16px; }
+  .progress { height:7px; background:#e8edf5; border-radius:999px; overflow:hidden; }
+  .progress-bar { background:var(--blue); }
+  /* Honest progress: sweeping indeterminate bar while work is in flight —
+     the system cannot know a real percentage, so it must not invent one. */
+  .progress-bar.indeterminate {
+    width:100%;
+    background:linear-gradient(90deg, transparent 0%, var(--blue) 35%, var(--blue) 65%, transparent 100%);
+    background-size:45% 100%;
+    background-repeat:no-repeat;
+    animation:progress-sweep 1.4s ease-in-out infinite;
+  }
+  @keyframes progress-sweep {
+    0% { background-position:-45% 0; }
+    100% { background-position:145% 0; }
+  }
+  .progress-bar.paused { width:100%; background:var(--yellow); animation:none; }
+  @media (prefers-reduced-motion: reduce) {
+    .progress-bar.indeterminate { animation:none; background:var(--blue); opacity:.45; }
+  }
+  .empty-current { padding:48px 24px; text-align:center; }
+  .empty-current .btn { margin:6px 4px 0; }
+  .run-group-title { margin:4px 0 2px; color:var(--text-dim); font-size:12px; font-weight:750; letter-spacing:.04em; }
+  .nav-btn.attention { color:#8a4f0f; }
+  .nav-btn.attention.active { color:var(--blue); }
+  .empty-current h2 { font-size:22px; }
+  .empty-current p { color:var(--text-dim); }
+  .result-shell { margin-top:14px; padding:24px; border:1px solid var(--border); border-radius:16px; background:#fff; }
+  .result-banner { padding:18px; border-radius:12px; background:#edf8f2; border:1px solid #b8e2cb; }
+  .result-banner.failed { background:#fff2f1; border-color:#f1c1bd; }
+  .result-banner.review { background:#edf4ff; border-color:#bfd2ff; }
+  .result-banner h2 { margin:0 0 8px; font-size:24px; }
+  .result-banner p { margin:0; line-height:1.55; color:#44516a; }
+  .result-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:16px 0; }
+  .result-card { border:1px solid var(--border); border-radius:10px; padding:13px; }
+  .result-card .label { display:block; margin-bottom:4px; color:var(--text-dim); font-size:11px; }
+  .result-card .value { display:block; font-size:17px; font-weight:750; color:var(--text-bright); overflow-wrap:anywhere; }
+  .review-report { display:grid; gap:10px; margin-top:16px; }
+  .review-group { border:1px solid var(--border); border-radius:12px; padding:14px; }
+  .review-finding { padding:12px 0; border-top:1px solid var(--border); }
+  .review-finding:first-of-type { border-top:0; }
+  .severity { display:inline-block; padding:3px 7px; margin-right:7px; border-radius:999px; background:#eef2f8; font-size:11px; font-weight:800; }
+  .severity-critical,.severity-high { background:#fff0ef; color:#b83232; }
+  .severity-medium { background:#fff7e8; color:#9b6515; }
+  .severity-low { background:#edf4ff; color:#245fc2; }
+  .action-row { display:flex; flex-wrap:wrap; gap:9px; margin-top:16px; }
+  .approval-box { margin-top:14px; }
+  .stall-box { margin-top:14px; padding:16px; border:1px solid #efb36e; border-radius:12px; background:#fff8ef; }
+  .stall-box strong { display:block; margin-bottom:6px; }
+  .details-stack { display:grid; gap:10px; margin-top:14px; }
+  .detail-panel { border:1px solid var(--border); border-radius:12px; background:#fff; overflow:hidden; }
+  .detail-panel > summary { padding:14px 16px; cursor:pointer; font-weight:750; }
+  .detail-content { padding:0 16px 16px; }
+  .log-output { min-height:180px; max-height:360px; }
+  .history-panel { min-height:520px; }
+  .workbench-toolbar { grid-template-columns:minmax(220px,1fr) 150px 150px 220px; }
+  .run-item { background:#fff; border-radius:12px; }
+  .status-badge { white-space:nowrap; }
+  @media (max-width: 860px) {
+    .workbench-toolbar { grid-template-columns:1fr 1fr; }
+    .run-item { grid-template-columns:1fr; }
+    .run-actions { width:100%; justify-content:flex-start; }
+  }
+  @media (max-width: 760px) {
+    html { scroll-padding-top: 64px; }
+    .app { width:min(100% - 20px, 980px); padding-top:10px; }
+    .topbar .subtitle { display:none; }
+    .workspace-nav { top:4px; }
+    .panel { padding:17px; }
+    .task-mode-grid,.form-grid,.runtime-grid,.result-grid { grid-template-columns:1fr 1fr; }
+    .step-row { grid-template-columns:1fr; border:1px solid var(--border); border-radius:10px; padding:10px; }
+    .workbench-toolbar { grid-template-columns:1fr; }
+    .run-item { grid-template-columns:1fr; }
+    .run-actions { width:100%; justify-content:flex-start; }
+    .run-actions .btn { min-height:44px; }
+    .config-preview-grid { grid-template-columns:1fr; }
+    .config-preview-header { flex-direction:column; }
+    .status-top { flex-direction:column; }
+  }
+  @media (max-width: 460px) {
+    html { scroll-padding-top: 58px; }
+    .brand-mark { display:none; }
+    h1 { font-size:20px; }
+    .workspace-nav { gap:2px; }
+    .nav-btn { font-size:13px; padding:6px; }
+    .task-mode-grid,.runtime-grid,.result-grid { grid-template-columns:1fr; }
+    .primary-run { position:sticky; bottom:8px; z-index:10; }
+  }
+
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">V</div>
+      <div>
+        <h1>Verdikt 任务工作台</h1>
+        <p class="subtitle">把任务交出去，只在需要判断和看结果时出现。</p>
+      </div>
+    </div>
+    <span class="status-badge status-idle" id="globalStatus" role="status" aria-live="polite" aria-atomic="true">待运行</span>
+  </header>
+
+  <nav class="workspace-nav" aria-label="工作台导航">
+    <button class="nav-btn active" id="navNew" type="button" aria-current="page" onclick="switchView('new')">新任务</button>
+    <button class="nav-btn" id="navCurrent" type="button" onclick="switchView('current')">当前任务</button>
+    <button class="nav-btn" id="navHistory" type="button" onclick="switchView('history')">历史记录</button>
+  </nav>
+
+  <main class="layout">
+    <section class="view" id="viewNew">
+      <div class="panel">
+        <div class="panel-heading">
+          <div><h2>创建一个任务</h2><p>只填写完成任务真正需要的信息。其余设置保持默认即可。</p></div>
+        </div>
+
+        <div class="task-mode-grid" role="radiogroup" aria-label="任务类型">
+          <label class="mode-card"><input type="radio" name="taskMode" value="implement" checked onchange="updateTaskMode()"><strong>修改代码</strong><span>在隔离副本中完成修改，通过后由你决定是否应用。</span></label>
+          <label class="mode-card"><input type="radio" name="taskMode" value="review" onchange="updateTaskMode()"><strong>只做代码审查</strong><span>只读分析并给出问题报告，不修改任何文件。</span></label>
+        </div>
+
+        <div class="form-row">
+          <label for="repoPath">项目路径</label>
+          <input type="text" id="repoPath" placeholder="D:\project\your-app" autocomplete="off" aria-describedby="repoPathHint repoPathError">
+          <p class="hint" id="repoPathHint">本机可访问的 Git 项目目录。</p>
+          <p class="field-error" id="repoPathError" hidden></p>
+        </div>
+        <div class="form-row">
+          <label for="goal">任务目标</label>
+          <textarea id="goal" placeholder="例如：修复登录偶发失败，并确保现有测试全部通过。" aria-describedby="goalError"></textarea>
+          <p class="field-error" id="goalError" hidden></p>
+        </div>
+        <div class="form-row">
+          <div id="acceptanceLabel" class="form-label">怎样算完成</div>
+          <div class="steps-list" id="stepsList" role="group" aria-labelledby="acceptanceLabel" aria-describedby="stepsError">
+            <div class="step-row">
+              <input type="text" class="step-id" value="test" placeholder="步骤名" aria-label="验收步骤 1 名称">
+              <input type="text" class="step-cmd" value="npm" placeholder="命令" aria-label="验收步骤 1 命令">
+              <input type="text" class="step-args" value='["test"]' placeholder='参数，例如 ["test"]' aria-label="验收步骤 1 参数">
+              <button class="btn btn-danger btn-small step-remove" type="button" onclick="removeStep(this)" title="删除步骤" aria-label="删除验收步骤 1">删</button>
+            </div>
+          </div>
+          <p class="field-error" id="stepsError" hidden></p>
+          <button class="btn btn-small" style="margin-top:8px" type="button" onclick="addStep()">添加验收步骤</button>
+        </div>
+        <div class="form-row">
+          <label for="planningMode">开始前是否先规划</label>
+          <select id="planningMode">
+            <option value="off" selected>直接开始</option>
+            <option value="auto">复杂任务自动规划</option>
+            <option value="required">先给我看方案，再继续</option>
+          </select>
+        </div>
+
+        <details class="advanced">
+          <summary>高级设置</summary>
+          <div class="advanced-content">
+            <div class="form-row"><label for="stages">分阶段任务</label><textarea id="stages" placeholder="每行一个阶段，例如：诊断: 找出失败原因"></textarea></div>
+            <div class="form-grid">
+              <div class="form-row"><label for="maxIterations">最多轮数</label><input type="number" id="maxIterations" value="5" min="1" max="20"></div>
+              <div class="form-row"><label for="maxBudget">预算上限 USD</label><input type="number" id="maxBudget" value="5" min="0.5" max="50" step="0.5"></div>
+            </div>
+            <div class="form-grid">
+              <div class="form-row"><label for="allowTestChanges">允许改测试</label><select id="allowTestChanges"><option value="false" selected>不允许</option><option value="true">允许</option></select></div>
+              <div class="form-row"><label for="maxRisk">风险门槛</label><select id="maxRisk"><option value="low" selected>低</option><option value="medium">中</option><option value="high">高</option><option value="none">最严格</option></select></div>
+            </div>
+            <div class="form-row"><label for="notificationMode">完成提醒</label><select id="notificationMode"><option value="browser" selected>浏览器通知</option><option value="quiet">只在页面提示</option></select></div>
+          </div>
+        </details>
+
+        <details class="advanced">
+          <summary>环境检查</summary>
+          <div class="advanced-content preflight-panel">
+            <div class="preflight-header"><strong>运行环境</strong><button class="btn btn-small" type="button" onclick="loadDoctor()">重新检查</button></div>
+            <div class="hint" id="doctorSummary" role="status" aria-live="polite" aria-atomic="true">正在检查运行环境...</div>
+            <div class="preflight-list" id="doctorList"></div>
+          </div>
+        </details>
+
+        <div class="form-notice" id="taskFormNotice" role="status" aria-live="polite" hidden></div>
+        <div class="form-error-summary" id="formErrorSummary" role="alert" aria-live="assertive" aria-atomic="true" tabindex="-1" hidden></div>
+        <div class="secondary-actions"><button class="btn" id="demoBtn" type="button" onclick="fillDemoTask()">填入示例</button><button class="btn" id="dryRunBtn" type="button" onclick="dryRun()">预览配置</button></div>
+        <section class="config-preview" id="configPreview" aria-labelledby="configPreviewTitle" tabindex="-1" hidden>
+          <div class="config-preview-header">
+            <div><h3 id="configPreviewTitle">任务配置摘要</h3><p>确认这些信息符合你的意图，再开始执行。</p></div>
+            <button class="btn btn-small" type="button" onclick="closeConfigPreview()">继续编辑</button>
+          </div>
+          <div id="configPreviewContent"></div>
+        </section>
+        <button class="btn primary-run" id="runBtn" type="button" onclick="startRun()">开始执行任务</button>
+        <p class="safety-note">先在隔离副本中工作。没有明确通过前，不会写回原项目。</p>
+      </div>
+    </section>
+
+    <section class="view" id="viewCurrent" hidden>
+      <div class="panel empty-current" id="currentEmpty">
+        <h2>现在没有正在查看的任务</h2><p>创建新任务，或从历史记录中选择一个任务。</p>
+        <p class="run-note" id="pendingNotice" role="status" aria-live="polite" hidden></p>
+        <button class="btn" id="pendingGoBtn" type="button" hidden>查看待确认任务</button>
+        <button class="btn btn-primary" type="button" onclick="switchView('new')">创建新任务</button>
+      </div>
+      <div id="currentContent" hidden>
+        <div class="status-hero" id="statusHero">
+          <div class="status-top">
+            <div><div class="eyebrow">当前任务</div><div class="phase-title" id="phaseLabel" role="status" aria-live="polite" aria-atomic="true">等待任务开始</div><div class="phase-detail" id="phaseDetail">开始后，这里会只显示你现在需要知道的状态。</div></div>
+            <span class="status-badge status-idle" id="statusBadge" aria-hidden="true">待运行</span>
+          </div>
+          <div class="runtime-grid">
+            <div class="runtime-item"><span>已运行</span><strong id="currentRunTimer">-</strong></div>
+            <div class="runtime-item"><span>当前阶段</span><strong id="currentStage">-</strong></div>
+            <div class="runtime-item"><span>阶段尝试</span><strong id="stageAttempt">-</strong></div>
+            <div class="runtime-item"><span>最近活动</span><strong id="heartbeatAt">-</strong></div>
+          </div>
+          <div class="hint" id="recoveryReason"></div>
+          <div class="progress-shell"><div class="progress"><div class="progress-bar" id="progressBar"></div></div></div>
+        </div>
+
+        <div class="approval-box" id="approvalBox" role="alert" aria-live="assertive" aria-atomic="true" hidden>
+          <div class="approval-title">需要你确认后才能继续</div><div id="approvalReason">这个任务包含需要确认的操作。</div>
+          <div class="approval-categories" id="approvalCategories"></div><div class="approval-action-detail" id="approvalAction" hidden></div>
+          <div class="approval-actions"><button class="btn btn-success" id="approveBtn" type="button" onclick="decideApproval('approve','once')">仅允许这一次</button><button class="btn btn-success" id="approveRunBtn" type="button" onclick="decideApproval('approve','run')">本次运行持续允许</button><button class="btn btn-danger" id="rejectBtn" type="button" onclick="decideApproval('reject','once')">拒绝并安全停止</button></div>
+        </div>
+
+        <div class="stall-box" id="stallBox" hidden><strong>这个任务可能卡住了</strong><div id="stallDetail">已经较长时间没有新输出。</div><div class="action-row"><button class="btn" type="button" onclick="hideStallWarning()">继续等待</button><button class="btn btn-danger" type="button" onclick="cancelRun()">停止任务</button><button class="btn" type="button" onclick="openProcessDetails()">查看详细过程</button></div></div>
+
+        <div class="result-shell" id="resultShell" hidden>
+          <div class="result-banner" id="resultBanner"><h2 id="resultConclusion">任务已完成</h2><p id="resultSummary">正在整理结果。</p></div>
+          <div class="review-report" id="reviewReport" hidden></div>
+          <div class="result-grid">
+            <div class="result-card"><span class="label">轮数</span><span class="value" id="resultIterations">-</span></div>
+            <div class="result-card"><span class="label">花费</span><span class="value" id="resultCost">-</span></div>
+            <div class="result-card"><span class="label">耗时</span><span class="value" id="resultDuration">-</span></div>
+            <div class="result-card"><span class="label">结束原因</span><span class="value" id="resultReason">-</span></div>
+          </div>
+          <div class="advice-box" id="adviceBox"><div class="advice-title">等待运行结果</div><div>任务结束后，这里会给出下一步建议。</div></div>
+          <div class="action-row">
+            <button class="btn btn-primary" id="applyBtn" type="button" onclick="applyPatch()" disabled>应用修改</button>
+            <button class="btn" id="patchBtn" type="button" onclick="loadPatchReview()" disabled>查看修改</button>
+            <button class="btn" id="viewBtn" type="button" onclick="viewRun()" disabled>查看完整结果</button>
+            <button class="btn" id="retryBtn" type="button" onclick="retryCurrentRun()" disabled>继续处理</button>
+            <button class="btn btn-danger" id="discardBtn" type="button" onclick="discardRun()" disabled>丢弃</button>
+          </div>
+        </div>
+
+        <div class="action-row" id="runningActions"><button class="btn btn-danger" id="stopBtn" type="button" onclick="cancelRun()" disabled>停止任务</button><button class="btn" id="evidenceBtn" type="button" onclick="verifyEvidence()" disabled>校验记录</button></div>
+        <div class="evidence-status" id="evidenceStatus" role="status" aria-live="polite" aria-atomic="true"></div>
+
+        <div class="details-stack">
+          <details class="detail-panel" id="processDetails"><summary>查看详细过程</summary><div class="detail-content">
+            <div class="lane-grid"><div class="lane-card"><strong>执行</strong><div id="laneExecutor">等待任务。</div></div><div class="lane-card"><strong>验收</strong><div id="laneJudge">等待任务。</div></div><div class="lane-card"><strong>审查</strong><div id="laneVerifier">等待任务。</div></div></div>
+            <div class="log-output" id="logOutput">等待任务开始。</div>
+          </div></details>
+          <details class="detail-panel" id="steeringPanel"><summary>控制下一轮与历史轮次</summary><div class="detail-content">
+            <div class="steering-grid"><div><label for="nextIterationNote">下一轮补充说明</label><textarea id="nextIterationNote" placeholder="例如：不要改接口，优先修复缓存失效。"></textarea></div><button class="btn" id="noteBtn" type="button" onclick="queueNextIterationNote()">加入下一轮</button></div>
+            <div class="checkpoint-row"><label for="checkpointIteration">轮次</label><input id="checkpointIteration" type="number" min="1" step="1" placeholder="例如 2"><button class="btn" type="button" onclick="rewindCurrentRun()">回到这一轮</button><button class="btn" type="button" onclick="forkCurrentRun()">从这一轮新建尝试</button></div>
+            <div class="hint" id="steeringStatus">补充说明会在下一轮开始时生效。</div>
+          </div></details>
+          <details class="detail-panel"><summary>补丁、时间线与轮次详情</summary><div class="detail-content">
+            <div id="patchSection"><h3>补丁审查</h3><div id="patchSummary" class="hint">任务通过后可以查看改动。</div><div class="patch-review" id="patchReview">暂无补丁。</div></div>
+            <h3>完整时间线</h3><div id="timelineList" class="timeline-list"><div class="hint">暂无时间线。</div></div>
+            <h3>轮次详情</h3><div id="agentTimeline" class="hint">暂无轮次记录。</div>
+          </div></details>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="viewHistory" hidden>
+      <div class="panel history-panel">
+        <div class="panel-heading"><div><h2>历史记录</h2><p>查找、继续或重新运行过去的任务。</p></div></div>
+        <div class="workbench-toolbar">
+          <div class="filter-field"><label class="sr-only" for="workbenchSearch">搜索历史记录</label><input type="search" id="workbenchSearch" placeholder="&#25628;&#32034;&#20219;&#21153;&#12289;&#39033;&#30446;&#12289;&#26631;&#31614;" oninput="resetHistoryLimit()"></div>
+          <div class="filter-field"><label class="sr-only" for="workbenchStatus">按运行状态筛选</label><select id="workbenchStatus" onchange="resetHistoryLimit()"><option value="all" selected>&#20840;&#37096;&#35760;&#24405;</option><option value="failed">&#26410;&#23436;&#25104;</option><option value="passed">&#24050;&#36890;&#36807;</option><option value="pendingPatch">&#24453;&#24212;&#29992;&#20462;&#25913;</option><option value="archived">&#24050;&#24402;&#26723;</option></select></div>
+          <div class="filter-field"><label class="sr-only" for="workbenchSource">按任务来源筛选</label><select id="workbenchSource" onchange="resetHistoryLimit()"><option value="work" selected>&#24037;&#20316;&#35760;&#24405;</option><option value="user">&#26222;&#36890;&#20219;&#21153;</option><option value="demo">&#31034;&#20363;</option><option value="benchmark">Benchmark</option><option value="test">&#27979;&#35797;</option><option value="unknown">&#26469;&#28304;&#26410;&#30693;</option><option value="all">&#20840;&#37096;&#26469;&#28304;</option></select></div>
+          <div class="filter-field"><label class="sr-only" for="workbenchRepo">按项目筛选</label><select id="workbenchRepo" onchange="resetHistoryLimit()"><option value="">&#20840;&#37096;&#39033;&#30446;</option></select></div>
+        </div>
+        <div class="hint" id="workbenchCount" role="status" aria-live="polite" aria-atomic="true">&#27491;&#22312;&#35745;&#31639;&#35760;&#24405;&#25968;&#37327;...</div>
+        <div class="workbench-list" id="workbenchList">&#27491;&#22312;&#21152;&#36733;&#36816;&#34892;&#35760;&#24405;...</div>
+        <div class="action-row"><button class="btn" id="loadMoreBtn" type="button" onclick="loadMoreRuns()" hidden>&#21152;&#36733;&#26356;&#22810;</button></div>
+        <details class="advanced"><summary>项目统计</summary><div class="advanced-content"><div class="stats-grid" id="projectStats">正在加载统计...</div></div></details>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+let currentRunId = null;
+let pollTimer = null;
+let workbenchTimer = null;
+let workbenchCache = { live: [], saved: [] };
+let currentApprovalRequest = null;
+let timelineAfter = 0;
+let timelineRunId = null;
+let timelineLoading = false;
+let currentStartedAt = null;
+let currentTaskMode = "implement";
+let workbenchInitialized = false;
+let historyLimit = 50;
+let currentTaskSource = "user";
+let currentResultResumable = false;
+let dismissedStallAt = null;
+let currentStallDetectedAt = null;
+const demoRepoPath = '__VERDIKT_DEMO_REPO_PATH__';
+const verdiktSessionToken = '__VERDIKT_SESSION_TOKEN__';
+const verdiktNativeFetch = window.fetch.bind(window);
+window.fetch = (input, init = {}) => {
+  const requestUrl = new URL(typeof input === 'string' ? input : input.url, window.location.href);
+  const method = String(init.method || (typeof input === 'string' ? 'GET' : input.method) || 'GET').toUpperCase();
+  if (requestUrl.origin !== window.location.origin || !['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    return verdiktNativeFetch(input, init);
+  }
+  const headers = new Headers(typeof input === 'string' ? init.headers : (init.headers || input.headers));
+  headers.set('X-Verdikt-Session', verdiktSessionToken);
+  return verdiktNativeFetch(input, { ...init, headers });
+};
+
+const el = (id) => document.getElementById(id);
+
+function switchView(view, remember = true) {
+  const names = ['new', 'current', 'history'];
+  const selected = names.includes(view) ? view : 'new';
+  for (const name of names) {
+    const section = el('view' + name[0].toUpperCase() + name.slice(1));
+    const nav = el('nav' + name[0].toUpperCase() + name.slice(1));
+    if (section) section.hidden = name !== selected;
+    if (nav) {
+      const isSelected = name === selected;
+      nav.classList.toggle('active', isSelected);
+      if (isSelected) nav.setAttribute('aria-current', 'page');
+      else nav.removeAttribute('aria-current');
+    }
+  }
+  if (remember && typeof localStorage !== 'undefined') localStorage.setItem('verdikt-view', selected);
+}
+
+function rememberCurrentRun(runId) {
+  if (typeof localStorage === 'undefined') return;
+  if (runId) localStorage.setItem('verdikt-current-run', runId);
+  else localStorage.removeItem('verdikt-current-run');
+}
+
+function showCurrentContent() {
+  if (el('currentEmpty')) el('currentEmpty').hidden = Boolean(currentRunId);
+  if (el('currentContent')) el('currentContent').hidden = !currentRunId;
+}
+
+function selectedTaskMode() {
+  if (typeof document.querySelector !== 'function') return currentTaskMode || 'implement';
+  return document.querySelector('input[name="taskMode"]:checked')?.value || 'implement';
+}
+
+function updateTaskMode() {
+  currentTaskMode = selectedTaskMode();
+  const isReview = currentTaskMode === 'review';
+  if (el('goal')) el('goal').placeholder = isReview
+    ? '例如：审查支付模块，重点找出可能导致金额错误或重复扣款的问题。'
+    : '例如：修复登录偶发失败，并确保现有测试全部通过。';
+  if (el('maxIterations')) el('maxIterations').disabled = isReview;
+  if (el('allowTestChanges')) el('allowTestChanges').disabled = isReview;
+  if (el('maxRisk')) el('maxRisk').disabled = isReview;
+}
+
+function openProcessDetails() {
+  const details = el('processDetails');
+  if (details) details.open = true;
+  details?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function hideStallWarning() {
+  if (el('stallBox')) el('stallBox').hidden = true;
+  if (el('statusHero')) el('statusHero').classList.remove('stalled');
+  dismissedStallAt = currentStallDetectedAt;
+}
+
+function setStatus(text, kind) {
+  const className = 'status-badge status-' + kind;
+  el('statusBadge').className = className;
+  el('statusBadge').textContent = text;
+  el('globalStatus').className = className;
+  el('globalStatus').textContent = text;
+}
+
+// Honest progress semantics: the system cannot know a real percentage, so it
+// never shows one. 'active' sweeps, 'paused' waits on the user, 'done' fills.
+function setProgressState(mode) {
+  const bar = el('progressBar');
+  if (!bar) return;
+  if (bar.classList && typeof bar.classList.toggle === 'function') {
+    bar.classList.toggle('indeterminate', mode === 'active');
+    bar.classList.toggle('paused', mode === 'paused');
+  }
+  if (bar.style) bar.style.width = mode === 'done' || mode === 'active' || mode === 'paused' ? '100%' : '0%';
+  const shell = bar.parentElement;
+  if (shell && typeof shell.setAttribute === 'function') {
+    shell.setAttribute('role', 'progressbar');
+    shell.setAttribute(
+      'aria-label',
+      mode === 'active' ? '任务进行中' : mode === 'paused' ? '等待你的确认' : mode === 'done' ? '已结束' : '未开始',
+    );
+    if (mode === 'done') {
+      shell.setAttribute('aria-valuemin', '0');
+      shell.setAttribute('aria-valuemax', '100');
+      shell.setAttribute('aria-valuenow', '100');
+    } else {
+      shell.removeAttribute('aria-valuenow');
+    }
+  }
+}
+
+function setRunningControls(isRunning) {
+  el('runBtn').disabled = isRunning;
+  el('dryRunBtn').disabled = isRunning;
+  el('stopBtn').disabled = !isRunning;
+}
+
+function setResultControls(result) {
+  const hasRun = Boolean(currentRunId);
+  const passed = Boolean(result && result.passed);
+  const reviewOnly = Boolean(result && result.reviewOnly);
+  const resumable = Boolean(result && result.resumable);
+  const actionTaken = Boolean(result && (result.applyStatus === 'applied' || result.applyStatus === 'discarded'));
+  const terminalResult = Boolean(result && (typeof result.passed === 'boolean' || result.stopReason || result.error));
+  currentResultResumable = resumable;
+  el('applyBtn').hidden = reviewOnly;
+  el('patchBtn').hidden = reviewOnly;
+  el('discardBtn').hidden = reviewOnly;
+  el('applyBtn').disabled = reviewOnly || !passed || actionTaken;
+  el('viewBtn').disabled = !hasRun;
+  el('patchBtn').disabled = reviewOnly || !passed;
+  if (el('evidenceBtn')) el('evidenceBtn').disabled = !hasRun;
+  el('retryBtn').textContent = resumable ? '\u7ee7\u7eed\u8fd0\u884c' : '\u91cd\u65b0\u8fd0\u884c';
+  el('retryBtn').disabled = !hasRun || passed || !terminalResult;
+  el('discardBtn').disabled = !hasRun || !terminalResult || actionTaken;
+}
+
+function getSteps() {
+  const steps = [];
+  for (const row of document.querySelectorAll('.step-row')) {
+    const id = row.querySelector('.step-id').value.trim();
+    const command = row.querySelector('.step-cmd').value.trim();
+    const argsText = row.querySelector('.step-args').value.trim();
+    if (!id || !command) continue;
+
+    let args = [];
+    if (argsText) {
+      try {
+        args = JSON.parse(argsText);
+        if (!Array.isArray(args)) throw new Error('参数必须是数组');
+      } catch {
+        args = argsText.split(/\s+/).filter(Boolean);
+      }
+    }
+
+    steps.push({ id, command, args });
+  }
+  return steps;
+}
+
+function addStep() {
+  const row = document.createElement('div');
+  row.className = 'step-row';
+  row.innerHTML = `
+    <input type="text" class="step-id" value="lint" placeholder="步骤名">
+    <input type="text" class="step-cmd" value="npm" placeholder="命令">
+    <input type="text" class="step-args" value='["run","lint"]' placeholder='参数，例如 ["run","lint"]'>
+    <button class="btn btn-danger btn-small step-remove" type="button" onclick="removeStep(this)" title="删除步骤">删</button>
+  `;
+  el('stepsList').appendChild(row);
+  updateStepLabels();
+  clearTaskFeedback();
+  row.querySelector('.step-id')?.focus();
+}
+
+function removeStep(button) {
+  const rows = document.querySelectorAll('.step-row');
+  if (rows.length > 1) {
+    button.closest('.step-row').remove();
+    updateStepLabels();
+    clearTaskFeedback();
+  }
+}
+
+function updateStepLabels() {
+  const rows = [...document.querySelectorAll('.step-row')];
+  rows.forEach((row, index) => {
+    const number = index + 1;
+    setElementAttribute(row.querySelector('.step-id'), 'aria-label', `验收步骤 ${number} 名称`);
+    setElementAttribute(row.querySelector('.step-cmd'), 'aria-label', `验收步骤 ${number} 命令`);
+    setElementAttribute(row.querySelector('.step-args'), 'aria-label', `验收步骤 ${number} 参数`);
+    let remove = null;
+    try {
+      remove = row.querySelector('.step-remove');
+    } catch {
+      // Lightweight script tests may expose only the editable fields.
+    }
+    if (remove) {
+      setElementAttribute(remove, 'aria-label', `删除验收步骤 ${number}`);
+      setElementAttribute(remove, 'title', `删除验收步骤 ${number}`);
+    }
+  });
+}
+
+function setElementAttribute(target, name, value) {
+  if (target && typeof target.setAttribute === 'function') target.setAttribute(name, value);
+}
+
+function buildTaskSpec() {
+  const task = {
+    id: 'web-task-' + Date.now().toString(36),
+    taskMode: selectedTaskMode(),
+    runSource: currentTaskSource,
+    goal: el('goal').value.trim(),
+    repoPath: el('repoPath').value.trim(),
+    acceptance: { steps: getSteps() },
+    maxIterations: Number.parseInt(el('maxIterations').value, 10) || 5,
+    maxBudgetUsd: Number.parseFloat(el('maxBudget').value) || 5,
+    integrity: {
+      allowTestChanges: el('allowTestChanges').value === 'true',
+      allowConfigChanges: false,
+    },
+    semantic: {
+      maxRisk: el('maxRisk').value,
+    },
+    planning: {
+      mode: el('planningMode') ? el('planningMode').value : 'off',
+      requireApproval: el('planningMode') ? el('planningMode').value === 'required' : false,
+    },
+  };
+  const stages = parseStages(el('stages').value);
+  if (stages.length > 0) task.stages = stages;
+  return task;
+}
+
+function parseStages(text) {
+  return text.split('\n').map((line, index) => {
+    const trimmed = line.trim();
+    if (!trimmed) return null;
+    const parts = trimmed.split(':');
+    const title = (parts.shift() || '').trim() || '节点 ' + (index + 1);
+    const goal = parts.join(':').trim() || title;
+    return {
+      id: 'stage-' + (index + 1),
+      title,
+      goal,
+    };
+  }).filter(Boolean);
+}
+
+function fillDemoTask() {
+  clearTaskFeedback();
+  el('repoPath').value = demoRepoPath;
+  el('goal').value = 'Fix the sum function so it correctly adds two numbers instead of subtracting them.';
+  el('stages').value = '';
+  el('maxIterations').value = '2';
+  el('maxBudget').value = '1';
+  el('allowTestChanges').value = 'false';
+  el('maxRisk').value = 'low';
+  if (el('planningMode')) el('planningMode').value = 'off';
+  currentTaskSource = 'demo';
+
+  const rows = document.querySelectorAll('.step-row');
+  if (rows.length > 0) {
+    rows[0].querySelector('.step-id').value = 'test';
+    rows[0].querySelector('.step-cmd').value = 'npx';
+    rows[0].querySelector('.step-args').value = '["vitest","run"]';
+  }
+
+  resetResult();
+  setProgressState('idle');
+  el('logOutput').textContent = '示例任务已填好。建议先点“预览配置”确认路径和验收命令，再点“开始执行任务”。运行通过前不会改原项目。';
+  setStatus('待运行', 'idle');
+  setResultControls(null);
+  renderAdvice(null);
+}
+
+function fillTaskForm(task) {
+  if (!task || typeof task !== 'object') return;
+  clearTaskFeedback();
+  el('repoPath').value = task.repoPath || '';
+  el('goal').value = task.goal || '';
+  const mode = task.taskMode === 'review' ? 'review' : 'implement';
+  currentTaskSource = task.runSource || 'user';
+  const modeInput = typeof document.querySelector === 'function' ? document.querySelector('input[name="taskMode"][value="' + mode + '"]') : null;
+  if (modeInput) modeInput.checked = true;
+  updateTaskMode();
+  el('maxIterations').value = task.maxIterations || 5;
+  el('maxBudget').value = task.maxBudgetUsd || 5;
+  el('allowTestChanges').value = task.integrity && task.integrity.allowTestChanges ? 'true' : 'false';
+  el('maxRisk').value = task.semantic && task.semantic.maxRisk ? task.semantic.maxRisk : 'low';
+  if (el('planningMode')) el('planningMode').value = task.planning && task.planning.mode ? task.planning.mode : 'off';
+  el('stages').value = Array.isArray(task.stages)
+    ? task.stages.map((stage) => `${stage.title || stage.id}: ${stage.goal || stage.title || ''}`).join('\n')
+    : '';
+
+  const steps = task.acceptance && Array.isArray(task.acceptance.steps) ? task.acceptance.steps : [];
+  el('stepsList').innerHTML = '';
+  for (const step of steps.length ? steps : [{ id: 'test', command: 'npm', args: ['test'] }]) {
+    const row = document.createElement('div');
+    row.className = 'step-row';
+    row.innerHTML = `
+      <input type="text" class="step-id" value="${escapeAttr(step.id || 'test')}" placeholder="步骤名">
+      <input type="text" class="step-cmd" value="${escapeAttr(step.command || 'npm')}" placeholder="命令">
+      <input type="text" class="step-args" value="${escapeAttr(JSON.stringify(step.args || []))}" placeholder='参数，例如 ["test"]'>
+      <button class="btn btn-danger btn-small step-remove" type="button" onclick="removeStep(this)" title="删除步骤">删</button>
+    `;
+    el('stepsList').appendChild(row);
+  }
+  updateStepLabels();
+}
+
+function validateTask(task) {
+  return taskValidationErrors(task)[0]?.message || '';
+}
+
+function taskValidationErrors(task) {
+  const errors = [];
+  if (!task.repoPath) errors.push({ field: 'repoPath', message: '请输入项目路径。', target: el('repoPath') });
+  if (!task.goal) errors.push({ field: 'goal', message: '请输入任务目标。', target: el('goal') });
+
+  const rows = [...document.querySelectorAll('.step-row')];
+  rows.forEach((row, index) => {
+    const idInput = row.querySelector('.step-id');
+    const commandInput = row.querySelector('.step-cmd');
+    const id = idInput?.value.trim() || '';
+    const command = commandInput?.value.trim() || '';
+    if (!id || !command) {
+      errors.push({
+        field: 'steps',
+        message: `请补全验收步骤 ${index + 1} 的名称和命令。`,
+        target: !id ? idInput : commandInput,
+      });
+    }
+  });
+  if (task.acceptance.steps.length === 0 && !errors.some((error) => error.field === 'steps')) {
+    errors.push({ field: 'steps', message: '请至少添加一个验收命令。', target: rows[0]?.querySelector('.step-cmd') || el('stepsList') });
+  }
+  return errors;
+}
+
+function clearTaskErrors() {
+  const summary = el('formErrorSummary');
+  if (summary) {
+    summary.hidden = true;
+    summary.innerHTML = '';
+  }
+  for (const id of ['repoPathError', 'goalError', 'stepsError']) {
+    const target = el(id);
+    if (target) {
+      target.hidden = true;
+      target.textContent = '';
+    }
+  }
+  for (const target of document.querySelectorAll('#viewNew [aria-invalid="true"]')) {
+    target.removeAttribute('aria-invalid');
+  }
+}
+
+function hideConfigPreview() {
+  const preview = el('configPreview');
+  if (preview) preview.hidden = true;
+}
+
+function closeConfigPreview() {
+  hideConfigPreview();
+  el('dryRunBtn')?.focus?.();
+}
+
+function showTaskNotice(text) {
+  const notice = el('taskFormNotice');
+  if (!notice) return;
+  notice.hidden = !text;
+  notice.textContent = text || '';
+}
+
+function clearTaskFeedback() {
+  clearTaskErrors();
+  hideConfigPreview();
+  showTaskNotice('');
+}
+
+function showTaskErrors(errors) {
+  clearTaskFeedback();
+  const safeErrors = Array.isArray(errors) && errors.length
+    ? errors
+    : [{ field: 'form', message: '请检查任务信息后重试。', target: el('formErrorSummary') }];
+  const summary = el('formErrorSummary');
+  if (summary) {
+    summary.innerHTML = `<strong>还有 ${safeErrors.length} 项需要处理</strong><ul>${safeErrors.map((error) => `<li>${escapeHtml(error.message)}</li>`).join('')}</ul>`;
+    summary.hidden = false;
+  }
+
+  const messagesByField = new Map();
+  for (const error of safeErrors) {
+    if (!messagesByField.has(error.field)) messagesByField.set(error.field, []);
+    messagesByField.get(error.field).push(error.message);
+    if (error.target && typeof error.target.setAttribute === 'function') {
+      error.target.setAttribute('aria-invalid', 'true');
+    }
+  }
+  const errorTargets = {
+    repoPath: el('repoPathError'),
+    goal: el('goalError'),
+    steps: el('stepsError'),
+  };
+  for (const [field, messages] of messagesByField.entries()) {
+    const target = errorTargets[field];
+    if (!target) continue;
+    target.textContent = messages.join(' ');
+    target.hidden = false;
+  }
+
+  switchView('new');
+  const firstTarget = safeErrors[0]?.target || summary;
+  if (firstTarget && typeof firstTarget.focus === 'function') {
+    firstTarget.focus({ preventScroll: true });
+    firstTarget.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+function apiTaskErrors(data) {
+  const details = Array.isArray(data && data.details) ? data.details : [];
+  const mapped = details.map((detail) => {
+    const field = String(detail && detail.field || '');
+    const message = [detail && detail.message, detail && detail.fix ? '建议：' + detail.fix : ''].filter(Boolean).join(' ');
+    if (field.includes('repoPath')) return { field: 'repoPath', message, target: el('repoPath') };
+    if (field.includes('goal')) return { field: 'goal', message, target: el('goal') };
+    if (field.includes('acceptance')) return { field: 'steps', message, target: document.querySelector('.step-cmd') || el('stepsList') };
+    return { field: 'form', message: message || String(data && data.error || '任务配置无效。'), target: el('formErrorSummary') };
+  });
+  if (mapped.length) return mapped;
+  return [{ field: 'form', message: String(data && data.error || '任务配置无效。'), target: el('formErrorSummary') }];
+}
+
+function renderConfigPreview(task) {
+  const preview = el('configPreview');
+  const content = el('configPreviewContent');
+  if (!preview || !content) return;
+  const taskType = task.taskMode === 'review' ? '只做代码审查' : '修改代码';
+  const planningLabels = { off: '直接开始', auto: '复杂任务自动规划', required: '先确认方案，再继续' };
+  const riskLabels = { none: '最严格', low: '低', medium: '中', high: '高' };
+  const notification = el('notificationMode')?.value === 'quiet' ? '只在页面提示' : '浏览器通知';
+  const steps = task.acceptance.steps.map((step) => {
+    const args = Array.isArray(step.args) ? step.args.map((arg) => JSON.stringify(String(arg))).join(' ') : '';
+    return `<li><strong>${escapeHtml(step.id)}</strong>：<code>${escapeHtml([step.command, args].filter(Boolean).join(' '))}</code></li>`;
+  }).join('');
+  const stageText = Array.isArray(task.stages) && task.stages.length
+    ? task.stages.map((stage) => stage.title || stage.id).join(' → ')
+    : '不分阶段';
+  const executionLimits = task.taskMode === 'review'
+    ? '只读审查，不修改文件'
+    : `最多 ${task.maxIterations} 轮，预算上限 $${Number(task.maxBudgetUsd).toFixed(2)}`;
+
+  content.innerHTML = `
+    <div class="config-preview-grid">
+      <div class="config-preview-item"><span>项目</span><strong>${escapeHtml(task.repoPath)}</strong></div>
+      <div class="config-preview-item"><span>任务类型</span><strong>${taskType}</strong></div>
+      <div class="config-preview-section"><strong>目标</strong><div>${escapeHtml(task.goal)}</div></div>
+      <div class="config-preview-section"><strong>验收步骤（${task.acceptance.steps.length}）</strong><ol>${steps}</ol></div>
+      <div class="config-preview-item"><span>开始方式</span><strong>${escapeHtml(planningLabels[task.planning.mode] || task.planning.mode)}</strong></div>
+      <div class="config-preview-item"><span>阶段</span><strong>${escapeHtml(stageText)}</strong></div>
+      <div class="config-preview-item"><span>运行限制</span><strong>${escapeHtml(executionLimits)}</strong></div>
+      <div class="config-preview-item"><span>风险与测试</span><strong>风险门槛：${escapeHtml(riskLabels[task.semantic.maxRisk] || task.semantic.maxRisk)}；${task.integrity.allowTestChanges ? '允许修改测试' : '不允许修改测试'}</strong></div>
+      <div class="config-preview-item"><span>完成提醒</span><strong>${notification}</strong></div>
+    </div>
+    <p class="config-preview-note">这里只是确认摘要，不会自动提交任务。点击下方“开始执行任务”才会真正开始。</p>
+  `;
+  preview.hidden = false;
+  preview.focus({ preventScroll: true });
+  preview.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function dryRun() {
+  const task = buildTaskSpec();
+  const errors = taskValidationErrors(task);
+  if (errors.length) {
+    showTaskErrors(errors);
+    return;
+  }
+  clearTaskErrors();
+  renderConfigPreview(task);
+}
+
+function formatApiError(data, fallback) {
+  const lines = [data && data.error ? data.error : fallback];
+  const details = Array.isArray(data && data.details) ? data.details : [];
+  for (const detail of details) {
+    if (!detail || typeof detail !== 'object') continue;
+    const field = detail.field ? String(detail.field) : '配置';
+    const message = detail.message ? String(detail.message) : '';
+    const fix = detail.fix ? String(detail.fix) : '';
+    const text = [field, message, fix ? '建议：' + fix : ''].filter(Boolean).join(' - ');
+    if (text) lines.push(text);
+  }
+  return lines.join('\n');
+}
+
+async function startRun() {
+  const task = buildTaskSpec();
+  const errors = taskValidationErrors(task);
+  if (errors.length) {
+    showTaskErrors(errors);
+    return;
+  }
+  clearTaskFeedback();
+
+  stopPolling();
+  // Keep the previous run context: a rejected submission must not strand
+  // an in-flight or waiting run (it would vanish from every view).
+  el('logOutput').textContent = '正在提交任务...\n';
+  setProgressState('active');
+  resetResult();
+  setStatus('运行中', 'running');
+  setRunningControls(true);
+  setResultControls(null);
+  currentTaskMode = task.taskMode || 'implement';
+  switchView('current');
+  showCurrentContent();
+  if (el('resultShell')) el('resultShell').hidden = true;
+  if (el('runningActions')) el('runningActions').hidden = false;
+
+  try {
+    const resp = await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(task),
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) {
+      if (resp.status === 400) {
+        setRunningControls(false);
+        setStatus('待运行', 'idle');
+        setProgressState('idle');
+        showTaskErrors(apiTaskErrors(data));
+        if (currentRunId) {
+          stopPolling();
+          pollProgress();
+        }
+        return;
+      }
+      throw new Error(formatApiError(data, '启动失败'));
+    }
+
+    currentRunId = data.runId;
+    rememberCurrentRun(currentRunId);
+    currentStartedAt = new Date().toISOString();
+    showCurrentContent();
+    resetTimeline(currentRunId);
+    appendLog('Run: ' + currentRunId);
+    if (data.queuePosition > 0) appendLog('排队位置: ' + data.queuePosition);
+    appendLog('任务: ' + task.goal);
+    appendLog('项目: ' + task.repoPath);
+    appendLog('');
+    setResultControls(null);
+    pollProgress();
+    refreshWorkbench();
+  } catch (err) {
+    appendLog('启动失败: ' + err.message);
+    setProgressState('done');
+    setStatus('启动失败', 'failed');
+    setRunningControls(false);
+    setResultControls(null);
+  }
+}
+
+function pollProgress() {
+  if (!currentRunId) return;
+  pollTimer = window.setInterval(fetchProgress, 1000);
+  fetchProgress();
+}
+
+async function fetchProgress() {
+  if (!currentRunId) return;
+
+  try {
+    const resp = await fetch('/api/run/' + encodeURIComponent(currentRunId));
+    const data = await resp.json();
+    if (!resp.ok || data.error) {
+      throw new Error(formatApiError(data, '读取状态失败'));
+    }
+
+    if (data.log) {
+      el('logOutput').textContent = data.log;
+      el('logOutput').scrollTop = el('logOutput').scrollHeight;
+    }
+    if (['queued', 'running', 'cancelling'].includes(data.status)) setProgressState('active');
+    else if (data.status === 'waiting_approval') setProgressState('paused');
+    renderPhase(data.phase);
+    if (data.stall) showStall(data.stall);
+    else clearStallWarning();
+    updateRuntimeMeta(data);
+    await fetchTimeline();
+    if (Array.isArray(data.iterations)) {
+      renderAgentTimeline({ iterations: data.iterations });
+    }
+
+    if (data.status === 'completed') {
+      stopPolling();
+      hideApproval();
+      showResult(data.result);
+    } else if (data.status === 'cancelled') {
+      stopPolling();
+      hideApproval();
+      showCancelled(data.result);
+    } else if (data.status === 'waiting_approval') {
+      stopPolling();
+      setRunningControls(false);
+      setStatus('\u7b49\u5f85\u786e\u8ba4', 'cancelling');
+      showApproval(data.approvalRequest || (data.result && data.result.approvalRequest));
+      fillResult(data.result || { stopReason: 'approval_required' });
+      setResultControls(data.result || { stopReason: 'approval_required' });
+    } else if (data.status === 'resumable') {
+      stopPolling();
+      hideApproval();
+      setRunningControls(false);
+      const result = data.result || { stopReason: 'interrupted', resumable: true };
+      const providerStopped = result.stopReason === 'provider_error';
+      setProgressState('done');
+      setStatus(providerStopped ? '\u670d\u52a1\u8bf7\u6c42\u672a\u5b8c\u6210' : '\u53ef\u7ee7\u7eed', providerStopped ? 'failed' : 'cancelling');
+      fillResult(result);
+      setResultControls(result);
+      renderResultSummary(result);
+      renderAdvice(providerStopped && result.advice ? result.advice : {
+        title: '\u8fd0\u884c\u5df2\u4fdd\u7559',
+        summary: data.recoveryReason || '\u5de5\u4f5c\u53f0\u5173\u95ed\u524d\u4fdd\u5b58\u4e86\u73b0\u573a\u3002',
+        nextActions: ['\u70b9\u51fb\u201c\u7ee7\u7eed\u8fd0\u884c\u201d\u6062\u590d\u3002'],
+        evidence: [],
+      });
+      if (el('resultShell')) el('resultShell').hidden = false;
+      if (el('runningActions')) el('runningActions').hidden = true;
+    } else if (data.status === 'cancelling') {
+      hideApproval();
+      setRunningControls(true);
+      setStatus('\u505c\u6b62\u4e2d', 'cancelling');
+      el('stopBtn').disabled = true;
+    } else if (data.status === 'queued') {
+      hideApproval();
+      setRunningControls(true);
+      setStatus('排队中', 'running');
+      el('stopBtn').disabled = false;
+    } else if (data.status === 'running') {
+      hideApproval();
+      setRunningControls(true);
+      setStatus('\u8fd0\u884c\u4e2d', 'running');
+    } else if (data.status === 'error') {
+      stopPolling();
+      hideApproval();
+      showError(data.result && data.result.error ? data.result.error : '\u8fd0\u884c\u5931\u8d25');
+    }
+  } catch (err) {
+    appendLog('状态读取失败: ' + err.message);
+  }
+}
+
+function appendLog(text) {
+  el('logOutput').textContent += text + '\n';
+  el('logOutput').scrollTop = el('logOutput').scrollHeight;
+}
+
+function showResult(result) {
+  setRunningControls(false);
+  const reviewOnly = Boolean(result && result.reviewOnly);
+  const reviewIncomplete = reviewOnly && result.reviewReport && result.reviewReport.verdict === 'incomplete';
+  const reviewDone = reviewOnly && !reviewIncomplete;
+  const label = reviewDone ? '审查完成' : reviewIncomplete ? '审查未完成' : result.passed ? '已通过' : '未通过';
+  setStatus(label, reviewDone ? 'passed' : result.passed ? 'passed' : 'failed');
+  setProgressState('done');
+  fillResult(result);
+  setResultControls(result);
+  renderAdvice(result && result.advice);
+  renderResultSummary(result);
+  if (el('resultShell')) el('resultShell').hidden = false;
+  if (el('runningActions')) el('runningActions').hidden = true;
+  if (el('stallBox')) el('stallBox').hidden = true;
+  switchView('current');
+  showCurrentContent();
+  el('resultShell')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  notifyRunFinished(result);
+  refreshWorkbench();
+  if (result && result.passed && !reviewOnly) loadPatchReview();
+}
+
+function showStall(stall) {
+  if (!stall || !el('stallBox') || dismissedStallAt === stall.detectedAt) return;
+  el('stallBox').hidden = false;
+  currentStallDetectedAt = stall.detectedAt || null;
+  const phase = stall.phase ? `\u5f53\u524d\u9636\u6bb5\uff1a${stall.phase}\u3002` : '';
+  el('stallDetail').textContent = `${phase}\u5df2\u7ecf ${Math.max(1, Math.round((stall.outputIdleMs || 0) / 1000))} \u79d2\u6ca1\u6709\u65b0\u8f93\u51fa\u3002\u4f60\u53ef\u4ee5\u7ee7\u7eed\u7b49\u5f85\uff0c\u4e5f\u53ef\u4ee5\u5b89\u5168\u505c\u6b62\u3002`;
+  el('statusHero').classList.add('stalled');
+}
+
+function clearStallWarning() {
+  if (el('stallBox')) el('stallBox').hidden = true;
+  if (el('statusHero')) el('statusHero').classList.remove('stalled');
+  dismissedStallAt = null;
+  currentStallDetectedAt = null;
+}
+
+function applyReviewLayout(reviewOnly) {
+  // Review runs have no patch and no next-round steering — hiding those
+  // panels keeps the completed-review screen free of dead-end controls.
+  if (el('steeringPanel')) el('steeringPanel').hidden = Boolean(reviewOnly);
+  if (el('patchSection')) el('patchSection').hidden = Boolean(reviewOnly);
+}
+
+function renderResultSummary(result) {
+  const reviewOnly = Boolean(result && result.reviewOnly);
+  applyReviewLayout(reviewOnly);
+  const banner = el('resultBanner');
+  banner.className = 'result-banner' + (reviewOnly ? ' review' : result && result.passed ? '' : ' failed');
+  if (reviewOnly) {
+    const report = result.reviewReport || { verdict: 'incomplete', summary: '没有收到完整审查报告。', findings: [] };
+    el('resultConclusion').textContent = report.verdict === 'incomplete' ? '审查未完成' : report.verdict === 'clean' ? '审查完成：未发现明确问题' : `审查完成：发现 ${Array.isArray(report.findings) ? report.findings.length : 0} 个问题`;
+    el('resultSummary').textContent = report.summary || '';
+    renderReviewReport(report);
+    return;
+  }
+  el('resultConclusion').textContent = result && result.stopReason === 'provider_error'
+    ? providerResultTitle(result.providerError)
+    : result && result.passed
+      ? '\u4efb\u52a1\u901a\u8fc7'
+      : result && result.stopReason === 'cancelled'
+        ? '\u4efb\u52a1\u5df2\u505c\u6b62'
+        : '\u4efb\u52a1\u672a\u901a\u8fc7';
+  el('resultSummary').textContent = result && result.advice && result.advice.summary
+    ? result.advice.summary
+    : result && result.passed
+      ? '验收和审查已经完成，可以查看并应用修改。'
+      : '任务已经结束，请查看下一步建议。';
+  const partial = result && result.partialIteration;
+  if (partial) {
+    const facts = [];
+    if (Array.isArray(partial.changedFiles)) facts.push(`${partial.changedFiles.length} \u4e2a\u5df2\u4fee\u6539\u6587\u4ef6`);
+    if (partial.judge) facts.push(`\u9a8c\u6536${partial.judge.passed ? '\u5df2\u901a\u8fc7' : '\u672a\u901a\u8fc7'}`);
+    if (facts.length) el('resultSummary').textContent += ` \u5df2\u4fdd\u7559\u5f53\u524d\u8f6e\u7684${facts.join('\u3001')}\u3002`;
+  }
+  el('reviewReport').hidden = true;
+  el('reviewReport').innerHTML = '';
+}
+
+function renderReviewReport(report) {
+  const container = el('reviewReport');
+  const findings = Array.isArray(report.findings) ? report.findings : [];
+  container.hidden = false;
+  if (findings.length === 0) {
+    container.innerHTML = `<div class="review-group"><strong>${report.verdict === 'incomplete' ? '没有形成可用结论' : '没有发现明确问题'}</strong><p class="hint">${escapeHtml(report.summary || '')}</p></div>`;
+    return;
+  }
+  const order = ['critical', 'high', 'medium', 'low'];
+  const labels = { critical: '严重', high: '高', medium: '一般', low: '建议' };
+  container.innerHTML = order.map((severity) => {
+    const items = findings.filter((item) => item.severity === severity);
+    if (!items.length) return '';
+    return `<div class="review-group"><strong>${labels[severity]}问题 · ${items.length}</strong>${items.map((item) => `<div class="review-finding"><div><span class="severity severity-${severity}">${labels[severity]}</span><strong>${escapeHtml(item.title || '')}</strong></div><p>${escapeHtml(item.detail || '')}</p>${item.file ? `<div class="hint">${escapeHtml(item.file)}${item.line ? ':' + escapeHtml(item.line) : ''}</div>` : ''}<div class="hint">建议：${escapeHtml(item.recommendation || '')}</div></div>`).join('')}</div>`;
+  }).join('');
+}
+
+function showCancelled(result) {
+  setRunningControls(false);
+  setStatus('已停止', 'failed');
+  setProgressState('done');
+  fillResult(result || { stopReason: 'cancelled' });
+  setResultControls(result);
+  renderAdvice(result && result.advice);
+  renderResultSummary(result || { stopReason: 'cancelled', passed: false });
+  if (el('resultShell')) el('resultShell').hidden = false;
+  if (el('runningActions')) el('runningActions').hidden = true;
+  switchView('current');
+  showCurrentContent();
+  refreshWorkbench();
+}
+
+function fillResult(result) {
+  el('resultIterations').textContent = result.iterations ?? '-';
+  el('resultCost').textContent = formatUsageCost(result, 2);
+  el('resultDuration').textContent = formatDuration(result.totalDurationMs ?? 0);
+  el('resultReason').textContent = result.stopReason ? statusLabel(result.stopReason) : '-';
+}
+
+function showError(message) {
+  setRunningControls(false);
+  setStatus('运行失败', 'failed');
+  setProgressState('done');
+  el('resultReason').textContent = 'error';
+  appendLog('运行失败: ' + message);
+  setResultControls({ passed: false, stopReason: 'error' });
+  renderAdvice({ title: '运行失败', summary: message, nextActions: ['检查环境或任务配置后重新运行。'], evidence: [] });
+  refreshWorkbench();
+}
+
+function resetResult() {
+  hideApproval();
+  if (el('evidenceStatus')) {
+    el('evidenceStatus').textContent = '';
+    el('evidenceStatus').className = 'evidence-status';
+  }
+  el('resultIterations').textContent = '-';
+  el('resultCost').textContent = '-';
+  el('resultDuration').textContent = '-';
+  el('resultReason').textContent = '-';
+  if (el('resultShell')) el('resultShell').hidden = true;
+  if (el('reviewReport')) { el('reviewReport').hidden = true; el('reviewReport').innerHTML = ''; }
+  for (const id of ['applyBtn','patchBtn','discardBtn']) if (el(id)) el(id).hidden = false;
+  applyReviewLayout(false);
+}
+
+
+function formatDuration(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return '-';
+  if (ms < 1000) return ms + 'ms';
+  if (ms < 60000) return (ms / 1000).toFixed(1) + 's';
+  return (ms / 60000).toFixed(1) + 'm';
+}
+
+async function applyPatch() {
+  if (!currentRunId) return;
+  if (!confirm('确认把这次修复应用到原项目吗？')) return;
+
+  try {
+    const resp = await fetch('/api/apply/' + encodeURIComponent(currentRunId), { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok || !data.success) {
+      throw new Error(formatApiError(data, '应用失败'));
+    }
+    el('applyBtn').disabled = true;
+    el('discardBtn').disabled = true;
+    appendLog('补丁已应用。');
+    alert('补丁已应用。');
+    refreshWorkbench();
+  } catch (err) {
+    alert('应用失败: ' + err.message);
+  }
+}
+
+function viewRun() {
+  if (currentRunId) window.open('/view/' + encodeURIComponent(currentRunId), '_blank');
+}
+
+async function discardRun() {
+  if (!currentRunId) return;
+  if (!confirm('确认丢弃这次运行吗？')) return;
+
+  try {
+    const resp = await fetch('/api/discard/' + encodeURIComponent(currentRunId), { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok || !data.success) {
+      throw new Error(formatApiError(data, '丢弃失败'));
+    }
+    stopPolling();
+    currentRunId = null;
+    rememberCurrentRun(null);
+    showCurrentContent();
+    switchView('new');
+    setStatus('已丢弃', 'idle');
+    setRunningControls(false);
+    setResultControls(null);
+    resetResult();
+    setProgressState('idle');
+    el('logOutput').textContent = '运行已丢弃。';
+    renderAdvice({ title: '运行已丢弃', summary: '原项目没有被修改。', nextActions: ['需要时重新运行任务。'], evidence: [] });
+    refreshWorkbench();
+  } catch (err) {
+    alert('丢弃失败: ' + err.message);
+  }
+}
+
+async function cancelRun() {
+  if (!currentRunId) return;
+  el('stopBtn').disabled = true;
+  setStatus('停止中', 'cancelling');
+  appendLog('正在停止运行...');
+
+  try {
+    const resp = await fetch('/api/cancel/' + encodeURIComponent(currentRunId), { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok || !data.success) {
+      throw new Error(formatApiError(data, '停止失败'));
+    }
+    fetchProgress();
+  } catch (err) {
+    appendLog('停止失败: ' + err.message);
+    setStatus('运行中', 'running');
+    el('stopBtn').disabled = false;
+  }
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    window.clearInterval(pollTimer);
+    pollTimer = null;
+  }
+  el('stopBtn').disabled = true;
+}
+
+async function refreshWorkbench() {
+  if (!el('workbenchList') || typeof fetch !== 'function') return;
+  try {
+    const resp = await fetch('/api/runs');
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(formatApiError(data, '读取工作台失败'));
+    workbenchCache = data;
+    updatePendingIndicators(data);
+    updateRepoFilter(data);
+    renderWorkbenchCache();
+    if (!workbenchInitialized) {
+      workbenchInitialized = true;
+      const active = Array.isArray(data.live) ? data.live.find((run) => ['queued','running','waiting_approval','cancelling','resumable'].includes(run.status)) : null;
+      const rememberedId = typeof localStorage !== 'undefined' ? localStorage.getItem('verdikt-current-run') : null;
+      const remembered = rememberedId ? [...(data.live || []), ...(data.saved || [])].find((run) => run.runId === rememberedId) : null;
+      const restored = active || remembered;
+      if (restored) {
+        currentRunId = restored.runId;
+        currentStartedAt = restored.startedAt || null;
+        currentTaskMode = restored.taskMode || 'implement';
+        switchView('current', false);
+        showCurrentContent();
+        stopPolling();
+        pollProgress();
+      } else {
+        const savedView = typeof localStorage !== 'undefined' ? localStorage.getItem('verdikt-view') : null;
+        switchView(savedView === 'history' ? 'history' : 'new', false);
+        showCurrentContent();
+      }
+    }
+    refreshStats();
+  } catch (err) {
+    if (el('workbenchList')) el('workbenchList').textContent = '工作台读取失败: ' + err.message;
+  }
+}
+
+function updatePendingIndicators(data) {
+  const live = Array.isArray(data && data.live) ? data.live : [];
+  const waiting = live.filter((run) => run.status === 'waiting_approval');
+  const nav = el('navCurrent');
+  if (nav) {
+    nav.textContent = waiting.length ? `当前任务（${waiting.length} 待确认）` : '当前任务';
+    if (nav.classList && typeof nav.classList.toggle === 'function') nav.classList.toggle('attention', waiting.length > 0);
+  }
+  const notice = el('pendingNotice');
+  const goBtn = el('pendingGoBtn');
+  if (notice) {
+    notice.hidden = waiting.length === 0;
+    if (waiting.length) {
+      const first = waiting[0];
+      notice.textContent = waiting.length === 1
+        ? `有 1 个任务正在等待你的确认：${first.goal || first.taskId || first.runId}`
+        : `有 ${waiting.length} 个任务正在等待你的确认。`;
+    }
+  }
+  if (goBtn) {
+    goBtn.hidden = waiting.length === 0;
+    goBtn.onclick = waiting.length ? () => selectRun(waiting[0].runId) : null;
+  }
+}
+
+function renderWorkbenchCache() {
+  renderWorkbench(workbenchCache);
+}
+
+function renderRunItem(run) {
+    const itemLabel = escapeAttr(run.taskId || run.runId);
+    const active = run.runId === currentRunId ? ' active' : '';
+    const pinned = run.pinned ? ' pinned' : '';
+    const archived = run.archived ? ' archived' : '';
+    const stopReason = run.stopReason || (run.result && run.result.stopReason) || '';
+    const canResume = run.resumable || run.status === 'resumable';
+    const displayStatus = canResume && stopReason === 'provider_error' ? 'provider_error' : (run.status || stopReason || 'unknown');
+    const status = escapeHtml(statusLabel(displayStatus));
+    const title = escapeHtml(run.taskId || run.runId);
+    const goal = escapeHtml(run.goal || stopReason || '');
+    const cost = ' \u00b7 ' + formatUsageCost(run, 2);
+    const source = ' \u00b7 ' + escapeHtml(sourceLabel(run.runSource || 'unknown'));
+    const queue = run.queuePosition ? ' \u00b7 \u6392\u961f ' + run.queuePosition : '';
+    const needsApproval = run.status === 'waiting_approval';
+    const canRetry = !canResume && !needsApproval && run.status && !['queued', 'running', 'cancelling', 'passed'].includes(run.status);
+    const stage = run.currentStageId ? ' \u00b7 \u9636\u6bb5 ' + escapeHtml(run.currentStageId) : '';
+    const heartbeat = run.heartbeatAt ? ' \u00b7 \u5fc3\u8df3 ' + escapeHtml(formatTimestamp(run.heartbeatAt)) : '';
+    const tags = Array.isArray(run.tags) ? run.tags : [];
+    return `
+      <div class="run-item${active}${pinned}${archived}">
+        <div>
+          <div class="run-title">${run.pinned ? '★ ' : ''}${title} · ${status}</div>
+          <div class="run-meta">${goal}${cost}${source}${queue}${stage}${heartbeat}</div>
+          <div class="run-meta">${escapeHtml(shortPath(run.repoPath || ''))}</div>
+          ${run.recoveryReason || (stopReason === 'provider_error' && run.advice && run.advice.summary) ? `<div class="run-note">${escapeHtml(run.recoveryReason || run.advice.summary)}</div>` : ''}
+          ${needsApproval && run.approvalRequest ? `<div class="run-note">\u5f85\u786e\u8ba4\uff1a${escapeHtml(run.approvalRequest.action && run.approvalRequest.action.command ? run.approvalRequest.action.command : (run.approvalRequest.categories || []).map(riskCategoryLabel).join('\u3001'))}</div>` : ''}
+          ${tags.length ? `<div class="tag-row">${tags.map((tag) => `<span class="tag-chip">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
+        </div>
+        <div class="run-actions">
+          <button class="btn" type="button" aria-label="查看 ${itemLabel}" onclick="selectRun('${escapeAttr(run.runId)}')">查看</button>
+          <button class="btn" type="button" aria-label="编辑再跑 ${itemLabel}" onclick="editRunTask('${escapeAttr(run.runId)}')">编辑再跑</button>
+          <button class="btn" type="button" aria-label="${run.pinned ? '取消固定' : '固定'} ${itemLabel}" onclick="togglePinned('${escapeAttr(run.runId)}', ${run.pinned ? 'false' : 'true'})">${run.pinned ? '取消固定' : '固定'}</button>
+          <button class="btn" type="button" aria-label="${run.archived ? '取消归档' : '归档'} ${itemLabel}" onclick="toggleArchived('${escapeAttr(run.runId)}', ${run.archived ? 'false' : 'true'})">${run.archived ? '取消归档' : '归档'}</button>
+          ${needsApproval ? `${run.approvalRequest && run.approvalRequest.action ? `<button class="btn btn-success" type="button" aria-label="批准（仅一次） ${itemLabel}" onclick="decideApprovalForRun('${escapeAttr(run.runId)}', 'approve', 'once')">仅一次</button><button class="btn btn-success" type="button" aria-label="批准（本次运行） ${itemLabel}" onclick="decideApprovalForRun('${escapeAttr(run.runId)}', 'approve', 'run')">本次运行</button>` : `<button class="btn btn-success" type="button" aria-label="确认并继续 ${itemLabel}" onclick="decideApprovalForRun('${escapeAttr(run.runId)}', 'approve', 'once')">确认并继续</button>`}<button class="btn btn-danger" type="button" aria-label="拒绝 ${itemLabel}" onclick="decideApprovalForRun('${escapeAttr(run.runId)}', 'reject', 'once')">\u62d2\u7edd</button>` : ''}
+          ${canResume ? `<button class="btn btn-primary" type="button" aria-label="继续 ${itemLabel}" onclick="resumeRun('${escapeAttr(run.runId)}')">\u7ee7\u7eed</button>` : ''}
+          ${canRetry ? `<button class="btn" type="button" aria-label="重试 ${itemLabel}" onclick="retryRun('${escapeAttr(run.runId)}')">\u91cd\u8bd5</button>` : ''}
+          <button class="btn" type="button" aria-label="校验证据 ${itemLabel}" onclick="verifyEvidence('${escapeAttr(run.runId)}')">\u6821\u9a8c\u8bc1\u636e</button>
+        </div>
+      </div>
+    `;
+}
+
+function renderWorkbench(data) {
+  const live = Array.isArray(data.live) ? data.live : [];
+  const saved = Array.isArray(data.saved) ? data.saved : [];
+  const historyLive = live.filter((run) => !['queued','running','waiting_approval','cancelling','resumable'].includes(run.status));
+  const mergedRaw = [...historyLive, ...saved.filter((run) => !live.some((item) => item.runId === run.runId))];
+  const query = (el('workbenchSearch') && el('workbenchSearch').value || '').toLowerCase().trim();
+  const statusFilter = el('workbenchStatus') ? el('workbenchStatus').value : 'all';
+  const sourceFilter = el('workbenchSource') ? el('workbenchSource').value : 'work';
+  const repoFilter = el('workbenchRepo') ? el('workbenchRepo').value : '';
+  const filtered = mergedRaw.filter((run) => {
+    const source = run.runSource || 'unknown';
+    if (sourceFilter === 'work' && ['test', 'benchmark'].includes(source)) return false;
+    if (!['work', 'all'].includes(sourceFilter) && source !== sourceFilter) return false;
+    if (repoFilter && run.repoPath !== repoFilter) return false;
+    if (statusFilter === 'active' && run.archived) return false;
+    if (statusFilter === 'archived' && !run.archived) return false;
+    if (statusFilter === 'failed' && ['passed', 'queued', 'running', 'cancelling', 'waiting_approval', 'resumable'].includes(run.status)) return false;
+    if (statusFilter === 'passed' && run.status !== 'passed') return false;
+    if (statusFilter === 'pendingPatch' && !(run.status === 'passed' && run.applyStatus === 'pending')) return false;
+    if (query) {
+      const haystack = [run.runId, run.taskId, run.goal, run.repoPath, run.status, source, ...(Array.isArray(run.tags) ? run.tags : [])].join(' ').toLowerCase();
+      if (!haystack.includes(query)) return false;
+    }
+    return true;
+  });
+  const merged = filtered.slice(0, historyLimit);
+  if (el('workbenchCount')) el('workbenchCount').textContent = `\u5df2\u663e\u793a ${merged.length} / ${filtered.length} \u6761\u8bb0\u5f55`;
+  if (el('loadMoreBtn')) el('loadMoreBtn').hidden = merged.length >= filtered.length;
+
+  const hasActiveLive = live.some((run) => ['queued', 'running', 'waiting_approval', 'cancelling', 'resumable'].includes(run.status));
+  if (merged.length === 0 && !hasActiveLive) {
+    el('workbenchList').textContent = '\u6ca1\u6709\u7b26\u5408\u6761\u4ef6\u7684\u8fd0\u884c\u8bb0\u5f55\u3002';
+    return;
+  }
+
+  const activeLive = live.filter((run) => ['queued', 'running', 'waiting_approval', 'cancelling', 'resumable'].includes(run.status));
+  const sections = [];
+  if (activeLive.length) {
+    sections.push('<div class="run-group-title">进行中 / 待处理</div>' + activeLive.map(renderRunItem).join(''));
+  }
+  if (activeLive.length && merged.length) sections.push('<div class="run-group-title">历史</div>');
+  sections.push(merged.map(renderRunItem).join(''));
+  el('workbenchList').innerHTML = sections.join('');
+}
+
+function resetHistoryLimit() {
+  historyLimit = 50;
+  renderWorkbenchCache();
+}
+
+function loadMoreRuns() {
+  historyLimit += 50;
+  renderWorkbenchCache();
+}
+
+function sourceLabel(source) {
+  const labels = { user: '\u666e\u901a\u4efb\u52a1', demo: '\u793a\u4f8b', benchmark: 'Benchmark', test: '\u6d4b\u8bd5', unknown: '\u6765\u6e90\u672a\u77e5' };
+  return labels[source] || source;
+}
+
+function updateRepoFilter(data) {
+  if (!el('workbenchRepo')) return;
+  const current = el('workbenchRepo').value;
+  const runs = [...(Array.isArray(data.live) ? data.live : []), ...(Array.isArray(data.saved) ? data.saved : [])];
+  const repos = [...new Set(runs.map((run) => run.repoPath).filter(Boolean))].sort();
+  el('workbenchRepo').innerHTML = '<option value="">全部项目</option>' + repos.map((repo) => `<option value="${escapeAttr(repo)}">${escapeHtml(shortPath(repo))}</option>`).join('');
+  if (repos.includes(current)) el('workbenchRepo').value = current;
+}
+
+function shortPath(path) {
+  const text = String(path || '');
+  const normalized = text.replace(/\\/g, '/');
+  const parts = normalized.split('/').filter(Boolean);
+  return parts.length > 2 ? parts.slice(-2).join('/') : text;
+}
+
+async function updateRunMetadata(runId, patch) {
+  const resp = await fetch('/api/run/' + encodeURIComponent(runId) + '/metadata', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  const data = await resp.json();
+  if (!resp.ok || data.error) throw new Error(formatApiError(data, '保存运行标记失败'));
+  await refreshWorkbench();
+}
+
+async function togglePinned(runId, pinned) {
+  try {
+    await updateRunMetadata(runId, { pinned });
+  } catch (err) {
+    alert('固定失败: ' + err.message);
+  }
+}
+
+async function toggleArchived(runId, archived) {
+  try {
+    await updateRunMetadata(runId, { archived });
+  } catch (err) {
+    alert('归档失败: ' + err.message);
+  }
+}
+
+async function editRunTask(runId) {
+  try {
+    const resp = await fetch('/api/task/' + encodeURIComponent(runId));
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(formatApiError(data, '读取任务失败'));
+    fillTaskForm(data.task);
+    currentRunId = runId;
+    switchView('new');
+    showTaskNotice(`已载入「${(data.task && data.task.id) || runId}」的任务配置。修改后点击“开始执行任务”会创建一次新的运行。`);
+    el('goal')?.focus?.();
+    setStatus('待运行', 'idle');
+    setRunningControls(false);
+    setResultControls({ passed: false, stopReason: 'edit' });
+  } catch (err) {
+    alert('读取任务失败: ' + err.message);
+  }
+}
+
+function selectRun(runId) {
+  currentRunId = runId;
+  rememberCurrentRun(currentRunId);
+  switchView('current');
+  showCurrentContent();
+  resetTimeline(runId);
+  stopPolling();
+  pollProgress();
+  loadPatchReview();
+}
+
+async function resumeRun(runId) {
+  await startSavedRun('/api/resume/' + encodeURIComponent(runId));
+}
+
+async function retryRun(runId) {
+  await startSavedRun('/api/retry/' + encodeURIComponent(runId));
+}
+
+async function retryCurrentRun() {
+  if (!currentRunId) return;
+  if (currentResultResumable) await resumeRun(currentRunId);
+  else await retryRun(currentRunId);
+}
+
+async function startSavedRun(url) {
+  try {
+    const resp = await fetch(url, { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(formatApiError(data, '启动失败'));
+    currentRunId = data.runId;
+    rememberCurrentRun(currentRunId);
+    currentStartedAt = new Date().toISOString();
+    switchView('current');
+    showCurrentContent();
+    resetTimeline(currentRunId);
+    el('logOutput').textContent = '任务已加入队列: ' + currentRunId + '\n';
+    setRunningControls(true);
+    setResultControls(null);
+    setStatus('排队中', 'running');
+    pollProgress();
+    refreshWorkbench();
+  } catch (err) {
+    alert('启动失败: ' + err.message);
+  }
+}
+
+function showApproval(request) {
+  currentApprovalRequest = request || null;
+  el('approvalBox').hidden = false;
+  el('approvalReason').textContent = request && request.reason
+    ? request.reason
+    : '这个任务需要你确认后才能继续。';
+  const categories = request && Array.isArray(request.categories) ? request.categories : [];
+  el('approvalCategories').textContent = categories.length
+    ? '风险类别：' + categories.map(riskCategoryLabel).join('、')
+    : '';
+  const action = request && request.action;
+  const actionBox = el('approvalAction');
+  if (actionBox) {
+    actionBox.hidden = !action;
+    actionBox.textContent = action
+      ? ['具体命令：' + (action.command || '-'), '工具：' + (action.tool || '-'), '位置：' + (action.cwd || '-')].join('\n')
+      : '';
+  }
+  if (el('approveBtn')) el('approveBtn').textContent = action ? '仅允许这一次' : '确认并继续';
+  if (el('approveRunBtn')) el('approveRunBtn').hidden = !action;
+  el('approveBtn')?.focus?.();
+}
+
+function hideApproval() {
+  currentApprovalRequest = null;
+  if (el('approvalBox')) el('approvalBox').hidden = true;
+  if (el('approvalAction')) el('approvalAction').hidden = true;
+}
+
+async function decideApproval(decision, scope = 'once') {
+  if (!currentRunId) return;
+  await decideApprovalForRun(currentRunId, decision, scope);
+}
+
+async function decideApprovalForRun(runId, decision, scope = 'once') {
+  const approved = decision === 'approve';
+  const prompt = approved
+    ? (scope === 'run' ? '确认本次运行持续允许这个具体动作吗？' : '确认仅允许这一次操作并继续吗？')
+    : '确认拒绝并安全停止这次运行吗？';
+  if (!confirm(prompt)) return;
+  try {
+    const query = approved ? '?scope=' + encodeURIComponent(scope) : '';
+    const resp = await fetch('/api/' + decision + '/' + encodeURIComponent(runId) + query, { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(formatApiError(data, '\u4fdd\u5b58\u786e\u8ba4\u7ed3\u679c\u5931\u8d25'));
+    currentRunId = runId;
+    hideApproval();
+    el('logOutput').textContent += (approved ? '\n\u5df2\u6279\u51c6\uff0c\u6b63\u5728\u7ee7\u7eed\u8fd0\u884c\u3002\n' : '\n\u5df2\u62d2\u7edd\uff0c\u6b63\u5728\u5b89\u5168\u6536\u5c3e\u3002\n');
+    setRunningControls(true);
+    setStatus(data.status === 'running' ? '运行中' : data.status === 'cancelling' ? '停止中' : '排队中', data.status === 'cancelling' ? 'cancelling' : 'running');
+    stopPolling();
+    pollProgress();
+    refreshWorkbench();
+  } catch (err) {
+    alert('\u64cd\u4f5c\u5931\u8d25: ' + err.message);
+  }
+}
+
+async function queueNextIterationNote() {
+  if (!currentRunId) {
+    alert('请先选择或开始一个任务。');
+    return;
+  }
+  const text = el('nextIterationNote') ? el('nextIterationNote').value.trim() : '';
+  if (!text) {
+    alert('请输入要在下一轮补充的说明。');
+    return;
+  }
+  try {
+    const resp = await fetch('/api/note/' + encodeURIComponent(currentRunId), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(formatApiError(data, '保存补充说明失败'));
+    el('nextIterationNote').value = '';
+    el('steeringStatus').textContent = '补充说明已保存，会在下一轮开始时生效。';
+    await fetchTimeline();
+  } catch (err) {
+    alert('保存失败: ' + err.message);
+  }
+}
+
+function selectedCheckpointIteration() {
+  const value = Number(el('checkpointIteration') && el('checkpointIteration').value);
+  return Number.isInteger(value) && value >= 1 ? value : null;
+}
+
+async function rewindCurrentRun() {
+  if (!currentRunId) return alert('请先选择一个任务。');
+  const iteration = selectedCheckpointIteration();
+  if (!iteration) return alert('请输入有效轮次，例如 1。');
+  if (!confirm('确认回到第 ' + iteration + ' 轮，并从那里继续吗？后续轮次会被替换。')) return;
+  await runCheckpointAction('rewind', currentRunId, iteration);
+}
+
+async function forkCurrentRun() {
+  if (!currentRunId) return alert('请先选择一个任务。');
+  const iteration = selectedCheckpointIteration();
+  if (!iteration) return alert('请输入有效轮次，例如 1。');
+  if (!confirm('确认从第 ' + iteration + ' 轮创建一个独立的新尝试吗？原任务会保留。')) return;
+  await runCheckpointAction('fork', currentRunId, iteration);
+}
+
+async function runCheckpointAction(action, runId, iteration) {
+  try {
+    const resp = await fetch('/api/' + action + '/' + encodeURIComponent(runId) + '?iteration=' + iteration, { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(formatApiError(data, '操作失败'));
+    currentRunId = data.runId || runId;
+    resetTimeline(currentRunId);
+    el('steeringStatus').textContent = action === 'fork'
+      ? '新尝试已创建并加入队列：' + currentRunId
+      : '任务已回到第 ' + iteration + ' 轮并加入队列。';
+    setRunningControls(true);
+    setStatus('排队中', 'running');
+    stopPolling();
+    pollProgress();
+    refreshWorkbench();
+  } catch (err) {
+    alert('操作失败: ' + err.message);
+  }
+}
+
+function resetTimeline(runId) {
+  timelineRunId = runId || null;
+  timelineAfter = 0;
+  timelineLoading = false;
+  if (el('timelineList')) el('timelineList').innerHTML = '<div class="hint">正在读取完整时间线...</div>';
+}
+
+async function fetchTimeline() {
+  if (!currentRunId || !el('timelineList') || timelineLoading) return;
+  if (timelineRunId !== currentRunId) resetTimeline(currentRunId);
+  timelineLoading = true;
+  try {
+    let page = 0;
+    while (page < 20) {
+      const resp = await fetch('/api/events/' + encodeURIComponent(currentRunId) + '?after=' + timelineAfter + '&limit=500');
+      const data = await resp.json();
+      if (!resp.ok || data.error) throw new Error(formatApiError(data, '读取时间线失败'));
+      const events = Array.isArray(data.events) ? data.events : [];
+      appendTimelineEvents(events);
+      timelineAfter = Number(data.nextAfter || timelineAfter);
+      page += 1;
+      if (events.length < 500) break;
+    }
+  } catch (err) {
+    if (timelineAfter === 0) el('timelineList').textContent = '时间线读取失败: ' + err.message;
+  } finally {
+    timelineLoading = false;
+  }
+}
+
+function appendTimelineEvents(events) {
+  if (!events.length) {
+    if (timelineAfter === 0) el('timelineList').innerHTML = '<div class="hint">暂无时间线记录。</div>';
+    return;
+  }
+  if (timelineAfter === 0) el('timelineList').innerHTML = '';
+  el('timelineList').innerHTML += events.map((event) => `
+    <div class="timeline-event">
+      <div class="sequence">#${Number(event.sequence || 0)}</div>
+      <div class="time">${escapeHtml(formatTimestamp(event.timestamp))}<br>${escapeHtml(eventTypeLabel(event.type))}</div>
+      <div class="detail">${escapeHtml(eventDetail(event))}</div>
+    </div>
+  `).join('');
+  el('timelineList').scrollTop = el('timelineList').scrollHeight;
+}
+
+function eventTypeLabel(type) {
+  const labels = {
+    run_started: '开始', run_resumed: '恢复', run_completed: '结束', run_failed: '失败', run_interrupted: '中断', provider_error: '\u670d\u52a1\u8bf7\u6c42\u5931\u8d25',
+    workspace_ready: '工作区就绪', iteration_started: '轮次开始', iteration_completed: '轮次完成',
+    executor_started: '执行开始', executor_completed: '执行完成', judges_started: '验收开始', judges_completed: '验收完成',
+    verifier_started: '审查开始', verifier_completed: '审查完成', approval_requested: '等待确认', approval_approved: '已批准',
+    approval_rejected: '已拒绝', note_queued: '补充说明已保存', note_consumed: '补充说明已使用', plan_started: '规划开始',
+    plan_completed: '规划完成', plan_approved: '规划已确认', plan_rejected: '规划被拒绝', checkpoint_rewound: '已回退',
+    checkpoint_forked: '已创建新尝试', patch_ready: '补丁就绪', patch_applied: '补丁已应用', patch_discarded: '补丁已丢弃',
+    hook_started: '扩展检查开始', hook_completed: '扩展检查完成', hook_failed: '扩展检查失败', log: '运行记录', executor_output: '实时输出',
+  };
+  return labels[type] || type || '事件';
+}
+
+function eventDetail(event) {
+  const data = event && event.data && typeof event.data === 'object' ? event.data : {};
+  if (typeof data.message === 'string') return data.message;
+  if (typeof data.command === 'string') return data.command;
+  if (typeof data.note === 'string') return data.note;
+  switch (event.type) {
+    case 'verifier_completed': {
+      const problems = Array.isArray(data.problems) ? data.problems.length : 0;
+      if (data.done === true) return '审查结论：已确认完成';
+      return problems ? `审查结论：仍需继续（${problems} 个问题）` : '审查结论：仍需继续';
+    }
+    case 'judges_completed':
+      if (typeof data.passed === 'boolean') return data.passed ? '验收：已通过' : '验收：未通过';
+      break;
+    case 'patch_ready': {
+      const files = Array.isArray(data.filesChanged) ? data.filesChanged.length : null;
+      if (files !== null) return `补丁就绪：${files} 个文件`;
+      break;
+    }
+    case 'run_completed':
+    case 'run_failed':
+    case 'run_interrupted':
+    case 'run_cancelled':
+      if (typeof data.reason === 'string') return `结束原因：${statusLabel(data.reason)}`;
+      break;
+    case 'note_queued':
+    case 'note_consumed':
+      if (typeof data.text === 'string') return data.text;
+      break;
+    case 'executor_completed':
+      if (typeof data.durationMs === 'number') return `耗时 ${formatDuration(data.durationMs)}`;
+      break;
+    case 'workspace_ready':
+      return `${data.mode === 'isolated' ? '隔离副本' : '直接模式'}${typeof data.durationMs === 'number' ? ` · 准备 ${formatDuration(data.durationMs)}` : ''}`;
+    case 'approval_requested':
+      if (Array.isArray(data.categories)) return '风险类别：' + data.categories.map(riskCategoryLabel).join('、');
+      break;
+  }
+  const parts = [];
+  if (Number.isInteger(event.iteration)) parts.push('第 ' + (event.iteration + 1) + ' 轮');
+  if (event.stageId) parts.push('阶段 ' + event.stageId);
+  for (const [key, value] of Object.entries(data)) {
+    if (value === undefined || value === null || key === 'message') continue;
+    parts.push(key + ': ' + (typeof value === 'object' ? JSON.stringify(value) : String(value)));
+  }
+  return parts.join(' · ') || eventTypeLabel(event.type);
+}
+
+function usageStatus(value) {
+  if (value && value.usage && typeof value.usage.status === 'string') return value.usage.status;
+  if (value && typeof value.usageStatus === 'string') return value.usageStatus;
+  return value && typeof value.totalCostUsd === 'number' ? 'complete' : 'unknown';
+}
+
+function formatUsageCost(value, digits = 2) {
+  const status = usageStatus(value);
+  if (status === 'unknown' || !value || typeof value.totalCostUsd !== 'number') return '未知';
+  const text = '$' + value.totalCostUsd.toFixed(digits);
+  return status === 'partial' ? text + '+' : text;
+}
+
+function formatStatsCost(totals) {
+  const runs = Number(totals.runs || 0);
+  const incomplete = Number(totals.unknownCostRuns || 0);
+  if (runs > 0 && incomplete >= runs) return '未知';
+  const text = '$' + Number(totals.totalCostUsd || 0).toFixed(2);
+  return incomplete > 0 ? text + '+' : text;
+}
+
+async function verifyEvidence(runId = currentRunId) {
+  if (!runId) return;
+  const target = el('evidenceStatus');
+  if (target && runId === currentRunId) {
+    target.className = 'evidence-status';
+    target.textContent = '\u6b63\u5728\u6821\u9a8c\u8bc1\u636e...';
+  }
+  try {
+    const resp = await fetch('/api/evidence/' + encodeURIComponent(runId) + '/verify');
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(formatApiError(data, '\u8bc1\u636e\u6821\u9a8c\u5931\u8d25'));
+    const message = data.valid
+      ? '\u8bc1\u636e\u5b8c\u6574\uff0c\u672a\u53d1\u73b0\u6539\u52a8\u3002'
+      : '\u8bc1\u636e\u6821\u9a8c\u5931\u8d25\uff1a' + [
+          ...(data.missing || []).map((item) => '\u7f3a\u5c11 ' + item),
+          ...(data.changed || []).map((item) => '\u5df2\u53d8\u66f4 ' + item),
+          ...(data.errors || []),
+        ].join('\uff1b');
+    if (target && runId === currentRunId) {
+      target.className = 'evidence-status ' + (data.valid ? 'valid' : 'invalid');
+      target.textContent = message;
+    } else {
+      alert(message);
+    }
+  } catch (err) {
+    if (target && runId === currentRunId) {
+      target.className = 'evidence-status invalid';
+      target.textContent = err.message;
+    } else {
+      alert('\u8bc1\u636e\u6821\u9a8c\u5931\u8d25: ' + err.message);
+    }
+  }
+}
+
+function riskCategoryLabel(category) {
+  const labels = {
+    deployment: '\u90e8\u7f72',
+    production: '\u751f\u4ea7\u73af\u5883',
+    database: '\u6570\u636e\u5e93',
+    secrets: '\u5bc6\u94a5',
+    external_write: '\u5916\u90e8\u5199\u5165',
+    destructive: '\u7834\u574f\u6027\u64cd\u4f5c',
+    outside_repo: '\u9879\u76ee\u5916\u64cd\u4f5c',
+    manual: '\u4eba\u5de5\u786e\u8ba4',
+  };
+  return labels[category] || category;
+}
+
+async function loadPatchReview() {
+  if (!currentRunId) return;
+  try {
+    const resp = await fetch('/api/patch/' + encodeURIComponent(currentRunId));
+    const data = await resp.json();
+    if (!resp.ok || !data.available) {
+      el('patchSummary').textContent = data.reason || '暂无可审查补丁。';
+      el('patchReview').textContent = '暂无补丁。';
+      return;
+    }
+    const files = Array.isArray(data.files) ? data.files : [];
+    const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+    const risk = data.risk || {};
+    el('patchSummary').innerHTML = `
+      <div class="risk-box risk-${escapeAttr(risk.level || 'low')}">
+        <strong>${escapeHtml(risk.verdict || '补丁风险待确认。')}</strong>
+        ${Array.isArray(risk.reasons) && risk.reasons.length ? `<ul class="advice-list">${risk.reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join('')}</ul>` : ''}
+        ${Array.isArray(risk.applyChecklist) && risk.applyChecklist.length ? `<ul class="advice-list">${risk.applyChecklist.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : ''}
+      </div>
+      <div class="file-chip-row">${files.map((file) => `<span class="file-chip">${escapeHtml(file.path)} +${file.additions}/-${file.deletions}</span>`).join('')}</div>
+      ${warnings.length ? `<ul class="advice-list">${warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join('')}</ul>` : '<span class="hint">未发现额外补丁警告。</span>'}
+    `;
+    el('patchReview').innerHTML = renderPatchText(data.patchText || '');
+  } catch (err) {
+    el('patchSummary').textContent = '补丁读取失败: ' + err.message;
+  }
+}
+
+function renderPatchText(text) {
+  if (!String(text).trim()) return '<span class="diff-meta">补丁为空。</span>';
+  return String(text).split('\n').map((line) => {
+    const cls = /^(diff |index |--- |\+\+\+ |@@)/.test(line)
+      ? 'diff-meta'
+      : line.startsWith('+')
+        ? 'diff-add'
+        : line.startsWith('-')
+          ? 'diff-del'
+          : '';
+    return cls ? `<span class="${cls}">${escapeHtml(line)}</span>` : escapeHtml(line);
+  }).join('\n');
+}
+
+async function loadDoctor() {
+  if (!el('doctorSummary')) return;
+  el('doctorSummary').textContent = '正在检查本机环境...';
+  try {
+    const resp = await fetch('/api/doctor');
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(formatApiError(data, '环境检查失败'));
+    const checks = Array.isArray(data.checks) ? data.checks : [];
+    const providerPending = checks.some((check) => check.verification === 'not_checked');
+    el('doctorSummary').textContent = data.ok
+      ? providerPending
+        ? '\u5fc5\u8981\u7684\u672c\u673a\u5de5\u5177\u5df2\u901a\u8fc7\uff1bClaude \u4f59\u989d\u548c\u670d\u52a1\u53ef\u7528\u6027\u5c06\u5728\u9996\u6b21\u8bf7\u6c42\u65f6\u786e\u8ba4\u3002'
+        : '\u5fc5\u8981\u73af\u5883\u5df2\u901a\u8fc7\uff0c\u53ef\u4ee5\u63d0\u4ea4\u4efb\u52a1\u3002'
+      : '\u6709\u5fc5\u8981\u73af\u5883\u672a\u901a\u8fc7\uff0c\u5148\u4fee\u597d\u518d\u8dd1\u4efb\u52a1\u66f4\u7a33\u3002';
+    el('doctorList').innerHTML = checks.map((check) => {
+      const state = check.verification === 'not_checked'
+        ? '\u5f85\u9996\u6b21\u8bf7\u6c42\u786e\u8ba4'
+        : check.ok
+          ? '\u901a\u8fc7'
+          : '\u672a\u901a\u8fc7';
+      return `
+        <div class="preflight-item">
+          <span>${escapeHtml(check.name)}${check.required ? '' : '\uff08\u53ef\u9009\uff09'}</span>
+          <span>${state} \u00b7 ${escapeHtml(check.detail || '')}</span>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    el('doctorSummary').textContent = '\u73af\u5883\u68c0\u67e5\u5931\u8d25: ' + err.message;
+  }
+}
+
+async function refreshStats() {
+  if (!el('projectStats') || typeof fetch !== 'function') return;
+  try {
+    const resp = await fetch('/api/stats');
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(formatApiError(data, '\u8bfb\u53d6\u7edf\u8ba1\u5931\u8d25'));
+    const totals = data.totals || {};
+    el('projectStats').innerHTML = `
+      <div class="stat-mini"><strong>${Number(totals.runs || 0)}</strong><span>\u5f53\u524d\u8bb0\u5f55</span></div>
+      <div class="stat-mini"><strong>${Number(totals.passRate || 0)}%</strong><span>\u901a\u8fc7\u7387</span></div>
+      <div class="stat-mini"><strong>${Number(totals.pendingPatches || 0)}</strong><span>\u5f85\u5e94\u7528\u8865\u4e01</span></div>
+      <div class="stat-mini"><strong>${formatStatsCost(totals)}</strong><span>${Number(totals.unknownCostRuns || 0) > 0 ? '\u5df2\u77e5\u82b1\u8d39 \u00b7 ' + Number(totals.unknownCostRuns || 0) + ' \u9879\u4e0d\u5b8c\u6574' : '\u7d2f\u8ba1\u82b1\u8d39'}</span></div>
+    `;
+  } catch (err) {
+    el('projectStats').textContent = '\u7edf\u8ba1\u8bfb\u53d6\u5931\u8d25: ' + err.message;
+  }
+}
+
+function localizeAdviceLine(text) {
+  const value = String(text ?? '');
+  return value.replace(/(\d+)\/(\d+) required (passed|failed)/, (all, a, b, verdict) =>
+    `必需 ${a}/${b} ${verdict === 'passed' ? '通过' : '未通过'}`);
+}
+
+function localizeJudgeSummary(text) {
+  const value = String(text ?? '');
+  const match = value.match(/^(\d+)\/(\d+) required (passed|failed)$/);
+  if (!match) return value;
+  return `必需 ${match[1]}/${match[2]} ${match[3] === 'passed' ? '通过' : '未通过'}`;
+}
+
+function renderAdvice(advice) {
+  if (!advice) {
+    el('adviceBox').innerHTML = '<div class="advice-title">\u7b49\u5f85\u8fd0\u884c\u7ed3\u679c</div><div>\u8fd0\u884c\u7ed3\u675f\u540e\u8fd9\u91cc\u4f1a\u7ed9\u51fa\u4e0b\u4e00\u6b65\u5efa\u8bae\u3002</div>';
+    return;
+  }
+  const actions = Array.isArray(advice.nextActions) ? advice.nextActions : [];
+  const evidence = Array.isArray(advice.evidence) ? advice.evidence : [];
+  el('adviceBox').innerHTML = `
+    <div class="advice-title">${escapeHtml(advice.title || '\u4e0b\u4e00\u6b65\u5efa\u8bae')}</div>
+    <div>${escapeHtml(advice.summary || '')}</div>
+    ${actions.length ? `<ul class="advice-list">${actions.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : ''}
+    ${evidence.length ? `<ul class="advice-list">${evidence.map((item) => `<li>${escapeHtml(localizeAdviceLine(item))}</li>`).join('')}</ul>` : ''}
+  `;
+}
+
+function renderAgentTimeline(summary) {
+  const iterations = summary && Array.isArray(summary.iterations) ? summary.iterations : [];
+  if (iterations.length === 0) {
+    el('agentTimeline').textContent = '\u6682\u65e0\u8f6e\u6b21\u8bb0\u5f55\u3002';
+    return;
+  }
+  el('agentTimeline').innerHTML = iterations.slice(-5).map((iter, index) => {
+    const verifier = iter.verifier || iter.verifierVerdict || {};
+    const judge = iter.judge || {};
+    const files = iter.patch && iter.patch.filesChanged || iter.changedFiles || [];
+    const failed = Array.isArray(judge.failedChecks) ? judge.failedChecks : [];
+    return `
+      <div class="agent-round">
+        <div class="agent-card"><strong>\u6267\u884c agent \u00b7 \u7b2c ${(iter.index ?? index) + 1} \u8f6e</strong>${escapeHtml(files.join(', ') || '\u8bb0\u5f55\u4e86\u672c\u8f6e\u6267\u884c\u3002')}</div>
+        <div class="agent-card"><strong>\u9a8c\u6536\u547d\u4ee4</strong>${escapeHtml(judge.passed ? '\u5df2\u901a\u8fc7' : (failed.length ? '\u672a\u901a\u8fc7\uff1a' + failed.join(', ') : localizeJudgeSummary(judge.summary) || '\u7b49\u5f85\u9a8c\u6536\u7ed3\u8bba\u3002'))}</div>
+        <div class="agent-card"><strong>\u5ba1\u67e5 agent</strong>${escapeHtml(verifier.done ? '\u5df2\u786e\u8ba4\u5b8c\u6210\u3002' : verifier.nextInstruction || (Array.isArray(verifier.problems) ? verifier.problems.join('\uff1b') : '\u7b49\u5f85\u5ba1\u67e5\u7ed3\u8bba\u3002'))}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderPhase(phase) {
+  if (!phase) return;
+  el('phaseLabel').textContent = phase.title || '运行中';
+  el('phaseDetail').textContent = phase.detail || '';
+  const lanes = phase.lanes || {};
+  el('laneExecutor').textContent = lanes.executor || '等待执行 agent。';
+  el('laneJudge').textContent = lanes.judge || '等待验收命令。';
+  el('laneVerifier').textContent = lanes.verifier || '等待审查 agent。';
+}
+
+function updateRuntimeMeta(data) {
+  const phase = data && data.phase || {};
+  const latest = phase.latestIteration || (Array.isArray(data.iterations) ? data.iterations[data.iterations.length - 1] : null) || {};
+  el('currentStage').textContent = latest.stageId || (data.result && data.result.stageProgress && data.result.stageProgress.currentStageId) || '-';
+  el('stageAttempt').textContent = latest.stageIteration || (data.result && data.result.stageProgress && data.result.stageProgress.stageIteration) || '-';
+  el('heartbeatAt').textContent = data.heartbeatAt ? formatTimestamp(data.heartbeatAt) : '-';
+  const started = data.startedAt || currentStartedAt;
+  el('currentRunTimer').textContent = started ? formatDuration(Math.max(0, Date.now() - new Date(started).getTime())) : '-';
+  el('recoveryReason').textContent = data.recoveryReason ? '\u6062\u590d\u539f\u56e0\uff1a' + data.recoveryReason : '';
+}
+
+function formatTimestamp(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString();
+}
+
+function notifyRunFinished(result) {
+  if (el('notificationMode') && el('notificationMode').value === 'quiet') return;
+  if (!result || typeof Notification === 'undefined') return;
+  const title = result.passed ? 'Verdikt 任务通过' : 'Verdikt 任务未通过';
+  const body = result.stopReason ? '结果: ' + result.stopReason : '';
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body });
+  } else if (Notification.permission === 'default') {
+    Notification.requestPermission().then((permission) => {
+      if (permission === 'granted') new Notification(title, { body });
+    });
+  }
+}
+
+function providerResultTitle(providerError) {
+  const category = providerError && providerError.category || 'unknown';
+  const titles = {
+    insufficient_credit: '\u4f59\u989d\u4e0d\u8db3\uff0c\u8fd0\u884c\u5df2\u6682\u505c',
+    authentication: 'Claude \u767b\u5f55\u4e0d\u53ef\u7528\uff0c\u8fd0\u884c\u5df2\u6682\u505c',
+    rate_limited: '\u8bf7\u6c42\u8fc7\u4e8e\u9891\u7e41\uff0c\u8fd0\u884c\u5df2\u6682\u505c',
+    service_unavailable: 'Claude \u670d\u52a1\u6682\u65f6\u4e0d\u53ef\u7528',
+    configuration: 'Claude \u914d\u7f6e\u9700\u8981\u68c0\u67e5',
+    unknown: '\u670d\u52a1\u8bf7\u6c42\u672a\u5b8c\u6210',
+  };
+  return titles[category] || titles.unknown;
+}
+
+function statusLabel(status) {
+  const map = {
+    queued: '排队中',
+    running: '运行中',
+    cancelling: '停止中',
+    completed: '已完成',
+    passed: '已通过',
+    max_iterations: '到达轮数',
+    budget_exceeded: '预算用完',
+    no_progress: '无进展',
+    cancelled: '已停止',
+    interrupted: '已中断，可继续',
+    resumable: '可继续',
+    review_completed: '审查完成',
+    review_incomplete: '审查未完成',
+    provider_error: '\u670d\u52a1\u8bf7\u6c42\u672a\u5b8c\u6210',
+    waiting_approval: '等待确认',
+    approval_required: '需要确认',
+    approval_rejected: '已拒绝',
+    stage_failed: '阶段未通过',
+    error: '错误',
+  };
+  return map[status] || status;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value).replace(/`/g, '&#96;');
+}
+
+if (el('workbenchList')) {
+  updateStepLabels();
+  const taskForm = el('viewNew');
+  taskForm?.addEventListener('input', clearTaskFeedback);
+  taskForm?.addEventListener('change', clearTaskFeedback);
+  updateTaskMode();
+  showCurrentContent();
+  loadDoctor();
+  refreshWorkbench();
+  refreshStats();
+  workbenchTimer = window.setInterval(refreshWorkbench, 5000);
+}
+</script>
+</body>
+</html>

@@ -49,6 +49,48 @@ function makeJudge(passed: boolean, checkName = "test"): JudgeResult {
   };
 }
 
+function makeJudgeWithOptionalFailure(): JudgeResult {
+  return {
+    passed: true,
+    checks: [
+      {
+        name: "test",
+        passed: true,
+        output: "ok",
+        exitCode: 0,
+        durationMs: 100,
+      },
+      {
+        name: "diagnostics",
+        passed: false,
+        output: "optional diagnostic failed",
+        exitCode: 1,
+        durationMs: 100,
+      },
+    ],
+    stepResults: [
+      {
+        id: "test",
+        passed: true,
+        exitCode: 0,
+        stdout: "ok",
+        stderr: "",
+        durationMs: 100,
+        required: true,
+      },
+      {
+        id: "diagnostics",
+        passed: false,
+        exitCode: 1,
+        stdout: "",
+        stderr: "optional diagnostic failed",
+        durationMs: 100,
+        required: false,
+      },
+    ],
+  };
+}
+
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe("decideStop", () => {
@@ -57,11 +99,63 @@ describe("decideStop", () => {
     expect(result.stop).toBe(false);
   });
 
-  it("stops with 'passed' when judge is all green", () => {
-    const iterations = [makeIteration({ judge: makeJudge(true) })];
+  it("stops with 'passed' when judge is all green and verifier confirms", () => {
+    const iterations = [
+      makeIteration({
+        judge: makeJudge(true),
+        verifierVerdict: { done: true, problems: [], nextInstruction: "" },
+      }),
+    ];
     const result = decideStop(iterations, makeTask(), 0);
     expect(result.stop).toBe(true);
     expect(result.reason).toBe("passed");
+  });
+
+  it("continues when judge passes but verifier still reports problems", () => {
+    const iterations = [
+      makeIteration({
+        judge: makeJudge(true),
+        verifierVerdict: {
+          done: false,
+          problems: ["The edge case is not covered yet"],
+          nextInstruction: "Add the missing edge case and rerun checks.",
+        },
+      }),
+    ];
+    const result = decideStop(iterations, makeTask(), 0);
+    expect(result.stop).toBe(false);
+  });
+
+  it("continues when verifier says done but still lists problems", () => {
+    const iterations = [
+      makeIteration({
+        judge: makeJudge(true),
+        verifierVerdict: {
+          done: true,
+          problems: ["The review is internally inconsistent"],
+          nextInstruction: "Resolve the remaining review problem.",
+        },
+      }),
+    ];
+    const result = decideStop(iterations, makeTask(), 0);
+    expect(result.stop).toBe(false);
+  });
+
+  it("continues when integrity has critical violations even if judge and verifier pass", () => {
+    const iterations = [
+      makeIteration({
+        judge: makeJudge(true),
+        verifierVerdict: { done: true, problems: [], nextInstruction: "" },
+        integrity: {
+          status: "violations",
+          criticalCount: 1,
+          warningCount: 0,
+          issues: [{ rule: "test-file-modified", detail: "Test file was modified" }],
+        },
+      }),
+    ];
+    const result = decideStop(iterations, makeTask(), 0);
+    expect(result.stop).toBe(false);
   });
 
   it("stops with 'max_iterations' when iteration count reached", () => {
@@ -80,15 +174,90 @@ describe("decideStop", () => {
     expect(result.reason).toBe("budget_exceeded");
   });
 
-  it("stops with 'no_progress' when consecutive failures are identical", () => {
+  it("continues after two identical failures to allow verifier feedback another round", () => {
     const judge = makeJudge(false);
     const iterations = [
       makeIteration({ index: 0, judge }),
       makeIteration({ index: 1, judge: { ...judge, checks: [...judge.checks] } }),
     ];
     const result = decideStop(iterations, makeTask(), 0);
+    expect(result.stop).toBe(false);
+  });
+
+  it("stops with 'no_progress' after three identical failures", () => {
+    const judge = makeJudge(false);
+    const iterations = [
+      makeIteration({ index: 0, judge }),
+      makeIteration({ index: 1, judge: { ...judge, checks: [...judge.checks] } }),
+      makeIteration({ index: 2, judge: { ...judge, checks: [...judge.checks] } }),
+    ];
+    const result = decideStop(iterations, makeTask(), 0);
     expect(result.stop).toBe(true);
     expect(result.reason).toBe("no_progress");
+  });
+
+  it("stops with 'no_progress' after three identical verifier objections", () => {
+    const judge = makeJudge(true);
+    const verdict = {
+      done: false,
+      problems: ["The empty state is still not handled"],
+      nextInstruction: "Handle the empty state before finishing.",
+    };
+    const iterations = [
+      makeIteration({ index: 0, judge, verifierVerdict: verdict }),
+      makeIteration({
+        index: 1,
+        judge: { ...judge, checks: [...judge.checks] },
+        verifierVerdict: verdict,
+      }),
+      makeIteration({
+        index: 2,
+        judge: { ...judge, checks: [...judge.checks] },
+        verifierVerdict: verdict,
+      }),
+    ];
+
+    const result = decideStop(iterations, makeTask(), 0);
+
+    expect(result.stop).toBe(true);
+    expect(result.reason).toBe("no_progress");
+  });
+
+  it("does not stop for repeated optional structured step failures when verifier feedback changes", () => {
+    const judge = makeJudgeWithOptionalFailure();
+    const iterations = [
+      makeIteration({
+        index: 0,
+        judge,
+        verifierVerdict: {
+          done: false,
+          problems: ["The empty state is still not handled"],
+          nextInstruction: "Handle empty state.",
+        },
+      }),
+      makeIteration({
+        index: 1,
+        judge: { ...judge, checks: [...judge.checks], stepResults: [...(judge.stepResults ?? [])] },
+        verifierVerdict: {
+          done: false,
+          problems: ["The loading state is still not handled"],
+          nextInstruction: "Handle loading state.",
+        },
+      }),
+      makeIteration({
+        index: 2,
+        judge: { ...judge, checks: [...judge.checks], stepResults: [...(judge.stepResults ?? [])] },
+        verifierVerdict: {
+          done: false,
+          problems: ["The error state is still not handled"],
+          nextInstruction: "Handle error state.",
+        },
+      }),
+    ];
+
+    const result = decideStop(iterations, makeTask(), 0);
+
+    expect(result.stop).toBe(false);
   });
 
   it("continues when failures differ between iterations", () => {
@@ -140,7 +309,12 @@ describe("decideStop", () => {
 
   it("prioritizes 'passed' over budget check", () => {
     const task = makeTask({ maxBudgetUsd: 0.001 });
-    const iterations = [makeIteration({ judge: makeJudge(true) })];
+    const iterations = [
+      makeIteration({
+        judge: makeJudge(true),
+        verifierVerdict: { done: true, problems: [], nextInstruction: "" },
+      }),
+    ];
     const result = decideStop(iterations, task, 999);
     expect(result.stop).toBe(true);
     expect(result.reason).toBe("passed");

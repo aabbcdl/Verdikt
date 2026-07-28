@@ -22,6 +22,7 @@
     "ignore": [
       "node_modules",
       "dist",
+      "coverage",
       ".verdikt",
       "apps/vscode",
       "tasks/benchmark/fixtures",

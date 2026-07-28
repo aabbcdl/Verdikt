@@ -112,4 +112,48 @@ describe("List command", () => {
       console.log = originalLog;
     }
   });
+
+  it("does not crash when saved summaries contain malformed display fields", async () => {
+    const runDir = join(tempDir, "run-bad-fields");
+    await mkdir(runDir, { recursive: true });
+    await writeFile(
+      join(runDir, "summary.json"),
+      JSON.stringify({
+        taskId: { nested: "not displayable" },
+        stopReason: ["passed"],
+        timestamp: 12345,
+      }),
+      "utf-8",
+    );
+
+    const benchDir = join(tempDir, "benchmark-bad-fields");
+    await mkdir(benchDir, { recursive: true });
+    await writeFile(
+      join(benchDir, "benchmark.json"),
+      JSON.stringify({
+        totals: { tasks: "many" },
+        status: { state: "completed" },
+        completedAt: ["later"],
+      }),
+      "utf-8",
+    );
+
+    const { setConfig } = await import("../config.js");
+    setConfig({ stateDir: tempDir });
+
+    const logs: string[] = [];
+    const originalLog = console.log;
+    console.log = (...args: unknown[]) => logs.push(args.join(" "));
+
+    try {
+      const { handleList } = await import("./list.js");
+      await expect(handleList()).resolves.toBeUndefined();
+
+      const output = logs.join("\n");
+      expect(output).toContain("run-bad-fields");
+      expect(output).toContain("benchmark-bad-fields");
+    } finally {
+      console.log = originalLog;
+    }
+  });
 });

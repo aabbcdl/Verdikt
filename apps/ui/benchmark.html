@@ -1,206 +1,433 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Verdikt — Benchmark Overview</title>
+<title>Verdikt Benchmark 报告</title>
 <style>
   :root {
-    --bg: #0d1117; --surface: #161b22; --border: #30363d;
-    --text: #e6edf3; --text-dim: #8b949e; --text-bright: #ffffff;
-    --green: #3fb950; --red: #f85149; --yellow: #d29922; --blue: #58a6ff; --purple: #bc8cff;
-    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-    --mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    --bg: #f4f7fb;
+    --surface: #ffffff;
+    --surface-2: #f7f9fc;
+    --border: #dce3ec;
+    --text: #172033;
+    --text-dim: #647086;
+    --text-bright: #101828;
+    --green: #0b6f44;
+    --red: #b42318;
+    --yellow: #8a4f0f;
+    --blue: #246bfd;
+    --purple: #7357b4;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: "SF Mono", "Cascadia Code", Consolas, monospace;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.6; padding: 2rem; max-width: 1200px; margin: 0 auto; }
-  h1 { font-size: 1.5rem; color: var(--text-bright); margin-bottom: 0.25rem; }
-  h2 { font-size: 1.1rem; color: var(--text-bright); margin: 2rem 0 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
-  .subtitle { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 1.5rem; }
-
-  /* Metric cards */
-  .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
-  .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem 1rem; }
-  .metric-label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
-  .metric-value { font-size: 1.4rem; font-weight: 700; color: var(--text-bright); }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    line-height: 1.55;
+  }
+  .app {
+    width: min(1120px, calc(100vw - 32px));
+    margin: 0 auto;
+    padding: 24px 0 56px;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .brand-mark {
+    display: grid;
+    place-items: center;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: var(--blue);
+    color: #ffffff;
+    font-weight: 800;
+  }
+  h1, h2, p { margin-top: 0; }
+  h1 { margin-bottom: 4px; color: var(--text-bright); font-size: 23px; line-height: 1.2; }
+  h2 { margin: 0 0 14px; color: var(--text-bright); font-size: 18px; }
+  .subtitle {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+  .panel {
+    margin-bottom: 14px;
+    padding: 22px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: 0 8px 28px rgba(30, 50, 80, 0.06);
+  }
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 9px;
+  }
+  .metric {
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-2);
+  }
+  .metric-label { margin-bottom: 5px; color: var(--text-dim); font-size: 11px; }
+  .metric-value {
+    color: var(--text-bright);
+    font-size: 19px;
+    font-weight: 750;
+    overflow-wrap: anywhere;
+  }
   .metric-value.good { color: var(--green); }
   .metric-value.warn { color: var(--yellow); }
   .metric-value.bad { color: var(--red); }
-
-  /* Task table */
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
-  th { color: var(--text-dim); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; }
-  tr:hover { background: rgba(88,166,255,0.04); }
-  .badge { display: inline-block; padding: 0.12rem 0.45rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
-  .badge-passed { background: rgba(63,185,80,0.15); color: var(--green); }
-  .badge-failed { background: rgba(248,81,73,0.15); color: var(--red); }
-  .badge-error { background: rgba(210,153,34,0.15); color: var(--yellow); }
-  .badge-category { background: rgba(188,140,255,0.12); color: var(--purple); font-weight: 500; }
-  .badge-risk { background: rgba(210,153,34,0.15); color: var(--yellow); }
-
-  a { color: var(--blue); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  .empty { color: var(--text-dim); font-style: italic; padding: 2rem; text-align: center; }
-  .bar { height: 6px; border-radius: 3px; background: var(--border); margin-top: 0.3rem; overflow: hidden; }
-  .bar-fill { height: 100%; border-radius: 3px; }
-  .bar-fill.good { background: var(--green); }
-  .bar-fill.warn { background: var(--yellow); }
-  .bar-fill.bad { background: var(--red); }
-  .recovery-badge { color: var(--green); font-weight: 600; }
+  .environment-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 9px;
+  }
+  .environment-item {
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-2);
+  }
+  .environment-item span { display: block; margin-bottom: 4px; color: var(--text-dim); font-size: 11px; }
+  .environment-item strong { display: block; overflow-wrap: anywhere; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+  }
+  th { color: var(--text-dim); font-size: 12px; font-weight: 650; white-space: nowrap; }
+  tbody tr:hover { background: var(--surface-2); }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .badge-passed { background: #e8f6ef; color: var(--green); }
+  .badge-failed { background: #fff0ef; color: var(--red); }
+  .badge-error { background: #fff7e8; color: var(--yellow); }
+  .badge-category { background: #f0edfa; color: var(--purple); }
+  .badge-risk { background: #fff7e8; color: var(--yellow); }
+  .file-list {
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+  .empty { padding: 24px; color: var(--text-dim); text-align: center; }
+  .attempt-group + .attempt-group {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .attempt-title {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 10px;
+  }
+  .flaky { color: var(--yellow); font-weight: 750; }
+  .recovery-summary {
+    display: grid;
+    gap: 8px;
+    color: var(--text);
+    font-size: 14px;
+  }
+  .recovery-summary p { margin: 0; }
+  .recovery-summary .hint { color: var(--text-dim); font-size: 13px; }
+  @media (max-width: 760px) {
+    .app { width: min(100% - 20px, 1120px); padding-top: 12px; }
+    .panel { padding: 17px; }
+    .metrics-grid, .environment-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 460px) {
+    .brand-mark { display: none; }
+    h1 { font-size: 20px; }
+    .metrics-grid, .environment-grid { grid-template-columns: 1fr; }
+    .attempt-title { flex-direction: column; }
+  }
 </style>
 </head>
 <body>
+<main class="app">
+  <header class="topbar">
+    <div class="brand-mark" aria-hidden="true">V</div>
+    <div>
+      <h1>Verdikt Benchmark 报告</h1>
+      <p class="subtitle" id="bench-id" role="status" aria-live="polite">正在读取 Benchmark...</p>
+    </div>
+  </header>
 
-<h1>Verdikt Benchmark</h1>
-<p class="subtitle" id="bench-id">Loading...</p>
+  <section class="panel" aria-label="Benchmark 指标">
+    <div class="metrics-grid" id="metrics"></div>
+  </section>
 
-<div class="metrics-grid" id="metrics"></div>
+  <section class="panel" aria-labelledby="environment-title">
+    <h2 id="environment-title">运行环境</h2>
+    <div class="environment-grid" id="environment"></div>
+  </section>
 
-<h2>Tasks</h2>
-<div class="card">
-  <table id="task-table">
-    <thead>
-      <tr>
-        <th>Task</th>
-        <th>Category</th>
-        <th>Expected</th>
-        <th>Actual</th>
-        <th>Match</th>
-        <th>Iter</th>
-        <th>Cost</th>
-        <th>Duration</th>
-        <th>Risk</th>
-        <th>Stop Reason</th>
-      </tr>
-    </thead>
-    <tbody id="task-body"></tbody>
-  </table>
-</div>
+  <section class="panel" aria-labelledby="tasks-title">
+    <h2 id="tasks-title">任务结果</h2>
+    <div class="table-wrap">
+      <table id="task-table">
+        <thead>
+          <tr><th>任务</th><th>类别</th><th>预期</th><th>实际</th><th>是否符合</th><th>尝试</th><th>通过率</th><th>中位耗时</th><th>最慢耗时</th><th>波动</th><th>总花费</th><th>稳定性</th><th>结束原因</th></tr>
+        </thead>
+        <tbody id="task-body"></tbody>
+      </table>
+    </div>
+  </section>
 
-<h2>Recovery Analysis</h2>
-<div class="card" id="recovery-section"></div>
+  <section class="panel" aria-labelledby="attempts-title">
+    <h2 id="attempts-title">重复尝试</h2>
+    <div id="attempt-section"></div>
+  </section>
 
-<h2>Evidence</h2>
-<div class="card" id="evidence-section"></div>
+  <section class="panel" aria-labelledby="recovery-title">
+    <h2 id="recovery-title">恢复能力</h2>
+    <div id="recovery-section"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="evidence-title">
+    <h2 id="evidence-title">证据文件</h2>
+    <div class="table-wrap" id="evidence-section"></div>
+  </section>
+</main>
 
 <script>
 async function load() {
   const params = new URLSearchParams(window.location.search);
   let basePath = params.get('dir') || '';
   if (!basePath) {
-    document.getElementById('bench-id').textContent = 'Add ?dir=<path-to-benchmark-dir> to the URL';
+    document.getElementById('bench-id').textContent = '请在地址中提供 ?dir=<Benchmark 目录>';
     return;
   }
   basePath = basePath.replace(/\\/g, '/');
 
   try {
     const res = await fetch(`${basePath}/benchmark.json`);
-    if (!res.ok) throw new Error(`Could not load ${basePath}/benchmark.json`);
-    const data = await res.json();
-    render(data, basePath);
+    if (!res.ok) throw new Error(`无法读取 ${basePath}/benchmark.json`);
+    render(await res.json(), basePath);
   } catch (err) {
-    document.getElementById('bench-id').textContent = `Error: ${err.message}`;
+    document.getElementById('bench-id').textContent = `读取失败：${safeText(err && err.message, '无法读取 Benchmark')}`;
   }
 }
 
 function render(data, basePath) {
-  const m = data.metrics;
-  const t = data.totals;
+  const metrics = data.metrics || {};
+  const totals = data.totals || {};
+  const tasks = Array.isArray(data.tasks) ? data.tasks : [];
 
-  // Header
   document.getElementById('bench-id').innerHTML =
-    `<strong>${data.suiteId}</strong> · ${data.benchmarkId} · ${data.status} · ${data.completedAt}`;
+    `<strong>${escapeHtml(data.suiteId)}</strong> · ${escapeHtml(data.benchmarkId)} · ${escapeHtml(statusLabel(data.status))} · ${escapeHtml(formatDate(data.completedAt), '-')}`;
 
-  // Metrics cards
-  const metricsHtml = [
-    metricCard('Tasks', t.tasks, ''),
-    metricCard('Success Rate', pct(m.successRate), rateClass(m.successRate)),
-    metricCard('Expected Outcome', pct(m.expectedOutcomeRate), rateClass(m.expectedOutcomeRate)),
-    metricCard('First Try Pass', pct(m.firstTryPassRate), rateClass(m.firstTryPassRate)),
-    metricCard('Multi-Round Recovery', pct(m.multiRoundRecoveryRate), m.multiRoundRecoveryRate > 0 ? 'good' : ''),
-    metricCard('Recovery Samples', m.recoverableFailureSampleCount, m.recoverableFailureSampleCount > 0 ? 'good' : ''),
-    metricCard('Avg Iterations', m.avgIterations.toFixed(2), ''),
-    metricCard('Avg Cost', `$${m.avgCostUsd.toFixed(2)}`, ''),
-    metricCard('Avg Duration', fmtDuration(m.avgDurationMs), ''),
-    metricCard('Infra Errors', m.infrastructureErrorRate === 0 ? '0' : pct(m.infrastructureErrorRate), m.infrastructureErrorRate === 0 ? 'good' : 'bad'),
+  document.getElementById('metrics').innerHTML = [
+    metricCard('任务数', safeNumber(totals.tasks), ''),
+    metricCard('重复次数', safeNumber(data.repeats, 1), ''),
+    metricCard('预热次数', safeNumber(data.warmups), ''),
+    metricCard('任务成功率', pct(metrics.successRate), rateClass(metrics.successRate)),
+    metricCard('尝试成功率', pct(metrics.attemptSuccessRate), rateClass(metrics.attemptSuccessRate)),
+    metricCard('符合预期', pct(metrics.expectedOutcomeRate), rateClass(metrics.expectedOutcomeRate)),
+    metricCard('不稳定任务', pct(metrics.flakyTaskRate), safeNumber(metrics.flakyTaskRate) > 0 ? 'warn' : 'good'),
+    metricCard('中位耗时', fmtDuration(metrics.medianDurationMs), ''),
+    metricCard('最慢耗时', fmtDuration(metrics.worstDurationMs), safeNumber(metrics.worstDurationMs) > safeNumber(metrics.medianDurationMs) * 2 ? 'warn' : ''),
+    metricCard('平均花费', formatCost({ totalCostUsd: safeNumber(metrics.avgCostUsd), usageStatus: metrics.avgCostStatus || 'complete' }, 2), (metrics.unknownCostSamples || metrics.partialCostSamples) ? 'warn' : ''),
+    metricCard('花费样本', `${safeNumber(metrics.costSampleCount)}/${tasks.filter((task) => task.runId !== null).length}`, safeNumber(metrics.unknownCostSamples) > 0 ? 'warn' : ''),
+    metricCard('环境错误', safeNumber(metrics.infrastructureErrorRate) === 0 ? '0' : pct(metrics.infrastructureErrorRate), safeNumber(metrics.infrastructureErrorRate) === 0 ? 'good' : 'bad'),
   ].join('');
-  document.getElementById('metrics').innerHTML = metricsHtml;
 
-  // Task table
-  const tbody = document.getElementById('task-body');
-  tbody.innerHTML = data.tasks.map(t => {
-    const matchBadge = t.matchedExpectation
-      ? '<span class="badge badge-passed">✓</span>'
-      : '<span class="badge badge-failed">✗</span>';
-    const actualBadge = t.actualStatus === 'passed'
-      ? '<span class="badge badge-passed">passed</span>'
-      : t.actualStatus === 'error'
-        ? '<span class="badge badge-error">error</span>'
-        : '<span class="badge badge-failed">failed</span>';
-    const riskBadge = t.semanticRisk && t.semanticRisk !== 'none'
-      ? `<span class="badge badge-risk">${t.semanticRisk}</span>`
-      : '—';
+  const environment = data.environment || {};
+  const environmentItems = [
+    ['Node', environment.node],
+    ['平台', environment.platform],
+    ['架构', environment.arch],
+    ['模型', environment.model],
+    ['Verdikt', environment.verdiktVersion],
+    ['源码提交', environment.gitCommit],
+  ];
+  document.getElementById('environment').innerHTML = environmentItems
+    .map(([label, value]) => `<div class="environment-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value, '-')}</strong></div>`)
+    .join('');
+
+  const taskBody = document.getElementById('task-body');
+  taskBody.innerHTML = tasks.length ? tasks.map((task) => {
+    const matched = Boolean(task.matchedExpectation);
+    const actualStatus = safeText(task.actualStatus, 'failed');
+    const semanticRisk = safeText(task.semanticRisk, '');
+    const riskBadge = semanticRisk && semanticRisk !== 'none'
+      ? `<span class="badge badge-risk">${escapeHtml(riskLabel(semanticRisk))}</span>`
+      : '';
     return `<tr>
-      <td><strong>${t.taskId}</strong></td>
-      <td><span class="badge badge-category">${t.category}</span></td>
-      <td>${t.expectedOutcome}</td>
-      <td>${actualBadge}</td>
-      <td>${matchBadge}</td>
-      <td>${t.iterations}</td>
-      <td>$${t.costUsd.toFixed(2)}</td>
-      <td>${fmtDuration(t.durationMs)}</td>
-      <td>${riskBadge}</td>
-      <td>${t.stopReason || '—'}</td>
+      <td><strong>${escapeHtml(task.taskId)}</strong></td>
+      <td><span class="badge badge-category">${escapeHtml(task.category)}</span></td>
+      <td>${escapeHtml(expectedLabel(task.expectedOutcome))}</td>
+      <td><span class="badge badge-${actualBadge(actualStatus)}">${escapeHtml(statusLabel(actualStatus))}</span></td>
+      <td><span class="badge badge-${matched ? 'passed' : 'failed'}">${matched ? '符合' : '不符合'}</span></td>
+      <td>${Array.isArray(task.attempts) ? task.attempts.length : 1}</td>
+      <td>${pct(task.passRate ?? (actualStatus === 'passed' ? 1 : 0))}</td>
+      <td>${fmtDuration(task.medianDurationMs ?? task.durationMs)}</td>
+      <td>${fmtDuration(task.worstDurationMs ?? task.durationMs)}</td>
+      <td>${fmtDuration(task.durationStdDevMs)}</td>
+      <td>${formatCost({ totalCostUsd: safeNumber(task.totalCostUsd, task.costUsd), usageStatus: task.usageStatus || 'complete' }, 2)}</td>
+      <td>${task.flaky ? '<span class="flaky">不稳定</span>' : '稳定'}${riskBadge ? '<br>' + riskBadge : ''}</td>
+      <td>${escapeHtml(statusLabel(task.stopReason), '-')}</td>
     </tr>`;
-  }).join('');
+  }).join('') : '<tr><td colspan="13" class="empty">没有任务结果</td></tr>';
 
-  // Recovery analysis
+  const attemptDiv = document.getElementById('attempt-section');
+  const repeatedTasks = tasks.filter((task) => Array.isArray(task.attempts) && task.attempts.length > 1);
+  attemptDiv.innerHTML = repeatedTasks.length === 0
+    ? '<div class="empty">每个任务只运行了一次。提高 repeats 后可以检查稳定性。</div>'
+    : repeatedTasks.map((task) => `
+        <div class="attempt-group">
+          <div class="attempt-title"><strong>${escapeHtml(task.taskId)}</strong><span class="${task.flaky ? 'flaky' : ''}">通过率 ${pct(task.passRate)}${task.flaky ? ' · 结果不稳定' : ''}</span></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>尝试</th><th>状态</th><th>是否符合</th><th>轮次</th><th>耗时</th><th>花费</th><th>结束原因</th><th>运行编号</th></tr></thead>
+            <tbody>${task.attempts.map((attempt) => `<tr>
+              <td>${safeNumber(attempt.attempt)}</td>
+              <td>${escapeHtml(statusLabel(attempt.actualStatus))}</td>
+              <td>${attempt.matchedExpectation ? '符合' : '不符合'}</td>
+              <td>${safeNumber(attempt.iterations)}</td>
+              <td>${fmtDuration(attempt.durationMs)}</td>
+              <td>${formatCost({ totalCostUsd: safeNumber(attempt.costUsd), usageStatus: attempt.usageStatus || 'complete' }, 2)}</td>
+              <td>${escapeHtml(statusLabel(attempt.stopReason), '-')}</td>
+              <td class="file-list">${escapeHtml(attempt.runId, '-')}</td>
+            </tr>`).join('')}</tbody>
+          </table></div>
+        </div>
+      `).join('');
+
   const recoveryDiv = document.getElementById('recovery-section');
-  const recoverable = m.recoverableFailureSampleCount || 0;
-  const recoveryRate = m.recoverableFailureRecoveryRate;
-  if (recoverable > 0) {
-    recoveryDiv.innerHTML = `
-      <p><strong class="recovery-badge">✓ ${recoverable} recoverable failure(s) detected</strong></p>
-      <p>Recovery Rate: <strong>${recoveryRate >= 0 ? pct(recoveryRate) : 'N/A'}</strong></p>
-      <p style="color:var(--text-dim);margin-top:0.5rem;font-size:0.85rem;">
-        These tasks failed on the first iteration but recovered after verifier feedback.
-        This validates Verdikt's core multi-round recovery capability.
-      </p>
-    `;
-  } else {
-    recoveryDiv.innerHTML = `
-      <p style="color:var(--text-dim)">No recoverable failures in this benchmark. All passed tasks succeeded on the first try.</p>
-    `;
-  }
+  const recoverable = safeNumber(metrics.recoverableFailureSampleCount);
+  const recoveryRate = safeNumber(metrics.recoverableFailureRecoveryRate, -1);
+  recoveryDiv.innerHTML = recoverable > 0
+    ? `<div class="recovery-summary"><p><strong>${recoverable} 个样本在首次失败后仍可恢复</strong></p><p>恢复率：<strong>${recoveryRate >= 0 ? pct(recoveryRate) : '无数据'}</strong></p><p class="hint">这些任务第一轮没有通过，但在审查反馈后的后续轮次中恢复，能够反映多轮修正是否有效。</p></div>`
+    : '<div class="recovery-summary"><p>本次没有出现“首次失败后恢复”的样本。</p><p class="hint">已通过的任务均在第一轮完成，或当前样本不足以计算恢复率。</p></div>';
 
-  // Evidence links
-  const evDiv = document.getElementById('evidence-section');
-  evDiv.innerHTML = `
+  document.getElementById('evidence-section').innerHTML = `
     <table>
-      <tr><th>File</th><th>Path</th></tr>
-      <tr><td>benchmark.json</td><td class="file-list" style="font-family:var(--mono);font-size:0.8rem;color:var(--text-dim)">${basePath}/benchmark.json</td></tr>
-      <tr><td>benchmark.md</td><td class="file-list" style="font-family:var(--mono);font-size:0.8rem;color:var(--text-dim)">${basePath}/benchmark.md</td></tr>
-      ${data.tasks.map(t => `<tr><td>${t.taskId} summary</td><td class="file-list" style="font-family:var(--mono);font-size:0.8rem;color:var(--text-dim)">${t.summaryPath || '—'}</td></tr>`).join('')}
+      <thead><tr><th>文件</th><th>路径</th></tr></thead>
+      <tbody>
+        <tr><td>benchmark.json</td><td class="file-list">${escapeHtml(basePath)}/benchmark.json</td></tr>
+        <tr><td>benchmark.md</td><td class="file-list">${escapeHtml(basePath)}/benchmark.md</td></tr>
+        ${tasks.map((task) => `<tr><td>${escapeHtml(task.taskId)} summary</td><td class="file-list">${escapeHtml(task.summaryPath, '-')}</td></tr>`).join('')}
+      </tbody>
     </table>
   `;
 }
 
 function metricCard(label, value, cls) {
-  return `<div class="metric-card">
-    <div class="metric-label">${label}</div>
-    <div class="metric-value ${cls}">${value}</div>
-  </div>`;
+  const safeClass = cls === 'good' || cls === 'warn' || cls === 'bad' ? cls : '';
+  return `<div class="metric"><div class="metric-label">${escapeHtml(label)}</div><div class="metric-value ${safeClass}">${escapeHtml(value)}</div></div>`;
 }
 
-function pct(n) { return n >= 0 ? `${(n * 100).toFixed(1)}%` : 'N/A'; }
-function rateClass(n) { return n >= 0.9 ? 'good' : n >= 0.7 ? 'warn' : 'bad'; }
+function statusLabel(status) {
+  const labels = {
+    completed: '已完成',
+    passed: '已通过',
+    failed: '未通过',
+    error: '运行错误',
+    cancelled: '已停止',
+    interrupted: '已中断',
+    provider_error: '服务请求未完成',
+    max_iterations: '达到轮数上限',
+    budget_exceeded: '预算已用完',
+    no_progress: '没有进展',
+    stage_failed: '阶段未通过',
+  };
+  return labels[status] || status || '未知';
+}
+
+function expectedLabel(value) {
+  const labels = { pass: '应通过', fail: '应失败', passed: '应通过', failed: '应失败' };
+  return labels[value] || value || '未说明';
+}
+
+function riskLabel(value) {
+  const labels = { low: '低风险', medium: '中风险', high: '高风险', critical: '严重风险' };
+  return labels[value] || value;
+}
+
+function actualBadge(status) {
+  if (status === 'passed') return 'passed';
+  if (status === 'error' || status === 'provider_error') return 'error';
+  return 'failed';
+}
+
+function pct(value) {
+  const number = safeNumber(value, -1);
+  return number >= 0 ? `${(number * 100).toFixed(1)}%` : '无数据';
+}
+
+function rateClass(value) {
+  const number = safeNumber(value, -1);
+  return number >= 0.9 ? 'good' : number >= 0.7 ? 'warn' : 'bad';
+}
+
+function formatDate(value) {
+  const text = safeText(value, '');
+  if (!text) return '';
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? text : date.toLocaleString('zh-CN');
+}
+
 function fmtDuration(ms) {
-  if (!ms) return '—';
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms/1000).toFixed(1)}s`;
-  return `${(ms/60000).toFixed(1)}m`;
+  const value = safeNumber(ms);
+  if (value <= 0) return '-';
+  if (value < 1000) return `${value}ms`;
+  if (value < 60000) return `${(value / 1000).toFixed(1)}s`;
+  return `${(value / 60000).toFixed(1)}m`;
+}
+
+function safeText(value, fallback = '-') {
+  if (typeof value === 'string' && value.length > 0) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return fallback;
+}
+
+function formatCost(value, digits = 2) {
+  const status = value && value.usageStatus ? value.usageStatus : 'unknown';
+  if (status === 'unknown' || !value || typeof value.totalCostUsd !== 'number') return '未知';
+  const text = '$' + value.totalCostUsd.toFixed(digits);
+  return status === 'partial' ? text + '+' : text;
+}
+
+function safeNumber(value, fallback = 0) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function escapeHtml(value, fallback = '-') {
+  return safeText(value, fallback)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 load();

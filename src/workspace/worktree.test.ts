@@ -1,11 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  applyFinalPatch,
   captureIterationDiff,
   checkpointIteration,
   createRunWorktree,
   discardRun,
-  getFinalPatch,
   getHeadCommit,
 } from "./worktree.js";
 
@@ -24,12 +22,26 @@ vi.mock("node:fs/promises", () => ({
 }));
 
 // Mock fs (for createWriteStream)
-vi.mock("node:fs", () => ({
-  createWriteStream: vi.fn(() => ({
-    end: vi.fn(),
-    write: vi.fn(),
-  })),
-}));
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...actual,
+    createWriteStream: vi.fn(() => {
+      let finishHandler: (() => void) | undefined;
+      const stream = {
+        end: vi.fn(() => {
+          finishHandler?.();
+        }),
+        on: vi.fn((event: string, handler: unknown) => {
+          if (event === "finish") finishHandler = handler as () => void;
+          return stream;
+        }),
+        write: vi.fn(),
+      };
+      return stream;
+    }),
+  };
+});
 
 describe("Worktree operations", () => {
   beforeEach(() => {
@@ -81,25 +93,10 @@ describe("Worktree operations", () => {
     it("creates worktree and returns info", async () => {
       const { execFile } = await import("node:child_process");
 
-      let callCount = 0;
       (execFile as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-        (
-          _cmd: string,
-          _args: string[],
-          _opts: unknown,
-          cb: (err: null, stdout: string) => void,
-        ) => {
-          callCount++;
-          if (callCount === 1) {
-            // getHeadCommit
-            cb(null, "abc123\n");
-          } else if (callCount === 2) {
-            // worktree add
-            cb(null, "");
-          } else if (callCount === 3) {
-            // checkout -b
-            cb(null, "");
-          }
+        (_cmd: string, args: string[], _opts: unknown, cb: (err: null, stdout: string) => void) => {
+          if (args[0] === "rev-parse") cb(null, "abc123\n");
+          else cb(null, "");
         },
       );
 
@@ -109,6 +106,51 @@ describe("Worktree operations", () => {
       expect(info.branchName).toBe("verdikt/run-001");
       expect(info.baseCommit).toBe("abc123");
       expect(info.evidenceDir).toContain("evidence");
+    });
+
+    it("cleans up a partially created worktree when checkout fails", async () => {
+      const { execFile } = await import("node:child_process");
+      const { rm } = await import("node:fs/promises");
+      (rm as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+      const calls: string[][] = [];
+      (execFile as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (
+          _cmd: string,
+          args: string[],
+          _opts: unknown,
+          cb: (err: Error | null, stdout: string, stderr: string) => void,
+        ) => {
+          calls.push(args);
+          if (args[0] === "rev-parse") {
+            cb(null, "abc123\n", "");
+            return;
+          }
+          if (args[0] === "worktree" && args[1] === "add") {
+            cb(null, "", "");
+            return;
+          }
+          if (args[0] === "checkout") {
+            cb(new Error("checkout failed"), "", "fatal checkout failed");
+            return;
+          }
+          if (args[0] === "worktree" && args[1] === "remove") {
+            cb(null, "", "");
+            return;
+          }
+          cb(null, "", "");
+        },
+      );
+
+      await expect(createRunWorktree("/repo", "/run-dir", "run-001")).rejects.toThrow(
+        "checkout failed",
+      );
+
+      expect(calls.some((args) => args[0] === "worktree" && args[1] === "remove")).toBe(true);
+      expect(rm).toHaveBeenCalledWith(expect.stringContaining("workspace"), {
+        recursive: true,
+        force: true,
+      });
     });
   });
 
@@ -150,6 +192,163 @@ describe("Worktree operations", () => {
       expect(result.linesAdded).toBe(13);
       expect(result.linesDeleted).toBe(7);
       expect(result.patchPath).toContain("iteration-0.patch");
+    });
+
+    it("marks untracked files for diff capture before writing the patch", async () => {
+      const { execFile, spawn } = await import("node:child_process");
+
+      const calls: string[][] = [];
+      (execFile as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (_cmd: string, args: string[], _opts: unknown, cb: (err: null, stdout: string) => void) => {
+          calls.push(args);
+          if (args.includes("--name-only")) {
+            cb(null, "");
+          } else if (args[0] === "ls-files") {
+            cb(null, "src/new-risk.ts\n");
+          } else if (args[0] === "add" && args[1] === "-N") {
+            cb(null, "");
+          } else if (args.includes("--numstat")) {
+            cb(null, "1\t0\tsrc/new-risk.ts\n");
+          }
+        },
+      );
+
+      const mockChild = {
+        stdout: { pipe: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn(),
+      };
+      (spawn as ReturnType<typeof vi.fn>).mockReturnValue(mockChild);
+      (mockChild.on as ReturnType<typeof vi.fn>).mockImplementation(
+        (event: string, handler: unknown) => {
+          if (event === "close") (handler as (code: number) => void)(0);
+        },
+      );
+
+      const result = await captureIterationDiff("/worktree", "/evidence", 0, "abc123");
+
+      expect(result.changedFiles).toEqual(["src/new-risk.ts"]);
+      expect(calls).toContainEqual(["add", "-N", "--", "src/new-risk.ts"]);
+    });
+
+    it("rejects when patch evidence cannot be written", async () => {
+      const { execFile, spawn } = await import("node:child_process");
+
+      (execFile as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (_cmd: string, args: string[], _opts: unknown, cb: (err: null, stdout: string) => void) => {
+          if (args.includes("--name-only")) {
+            cb(null, "src/app.ts\n");
+          } else if (args.includes("--numstat")) {
+            cb(null, "1\t1\tsrc/app.ts\n");
+          } else if (args[0] === "ls-files") {
+            cb(null, "");
+          }
+        },
+      );
+
+      const mockChild = {
+        stdout: { pipe: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn(),
+      };
+      (spawn as ReturnType<typeof vi.fn>).mockReturnValue(mockChild);
+
+      (mockChild.stderr.on as ReturnType<typeof vi.fn>).mockImplementation(
+        (event: string, handler: unknown) => {
+          if (event === "data") (handler as (chunk: Buffer) => void)(Buffer.from("fatal diff"));
+        },
+      );
+      (mockChild.on as ReturnType<typeof vi.fn>).mockImplementation(
+        (event: string, handler: unknown) => {
+          if (event === "close") (handler as (code: number) => void)(2);
+        },
+      );
+
+      await expect(captureIterationDiff("/worktree", "/evidence", 0, "abc123")).rejects.toThrow(
+        "git diff abc123 failed",
+      );
+    });
+
+    it("waits for the patch file stream to finish before returning", async () => {
+      const { execFile, spawn } = await import("node:child_process");
+      const { createWriteStream } = await import("node:fs");
+
+      (execFile as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (_cmd: string, args: string[], _opts: unknown, cb: (err: null, stdout: string) => void) => {
+          if (args.includes("--name-only")) {
+            cb(null, "src/app.ts\n");
+          } else if (args.includes("--numstat")) {
+            cb(null, "1\t0\tsrc/app.ts\n");
+          } else if (args[0] === "ls-files") {
+            cb(null, "");
+          }
+        },
+      );
+
+      let closeHandler: ((code: number) => void) | undefined;
+      const mockChild = {
+        stdout: { pipe: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn((event: string, handler: unknown) => {
+          if (event === "close") closeHandler = handler as (code: number) => void;
+        }),
+      };
+      (spawn as ReturnType<typeof vi.fn>).mockReturnValue(mockChild);
+
+      let finishHandler: (() => void) | undefined;
+      const mockStream = {
+        end: vi.fn(),
+        on: vi.fn((event: string, handler: unknown) => {
+          if (event === "finish") finishHandler = handler as () => void;
+          return mockStream;
+        }),
+        write: vi.fn(),
+      };
+      (createWriteStream as ReturnType<typeof vi.fn>).mockReturnValue(mockStream);
+
+      let resolved = false;
+      const resultPromise = captureIterationDiff("/worktree", "/evidence", 0, "abc123").then(() => {
+        resolved = true;
+      });
+
+      await vi.waitFor(() => {
+        expect(closeHandler).toBeTypeOf("function");
+      });
+      closeHandler?.(0);
+      await Promise.resolve();
+      await new Promise((resolveTick) => setTimeout(resolveTick, 0));
+      expect(resolved).toBe(false);
+
+      finishHandler?.();
+      await resultPromise;
+      expect(resolved).toBe(true);
+    });
+  });
+
+  describe("checkpointIteration", () => {
+    it("disables git signing for internal checkpoint commits", async () => {
+      const { execFile } = await import("node:child_process");
+      const calls: string[][] = [];
+
+      (execFile as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (_cmd: string, args: string[], _opts: unknown, cb: (err: null, stdout: string) => void) => {
+          calls.push(args);
+          if (args[0] === "status") {
+            cb(null, " M src/app.ts\n");
+            return;
+          }
+          if (args[0] === "rev-parse") {
+            cb(null, "def456\n");
+            return;
+          }
+          cb(null, "");
+        },
+      );
+
+      await checkpointIteration("/worktree", 2);
+
+      const commitCall = calls.find((args) => args[0] === "commit");
+      expect(commitCall).toEqual(expect.arrayContaining(["--no-gpg-sign"]));
     });
   });
 
@@ -211,21 +410,7 @@ describe("Worktree operations", () => {
     });
   });
 
-  describe("getFinalPatch", () => {
-    it("returns diff between base and HEAD", async () => {
-      const { execFile } = await import("node:child_process");
-
-      (execFile as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-        (_cmd: string, args: string[], _opts: unknown, cb: (err: null, stdout: string) => void) => {
-          if (args.includes("--name-only")) {
-            cb(null, "src/app.ts\n");
-          }
-        },
-      );
-
-      // This test verifies the function can be called
-      // In a real test, we'd need to mock the full git diff output
-      expect(true).toBe(true);
-    });
-  });
+  // writeFinalPatch is covered by real-git integration tests in
+  // worktree.integration.test.ts — the previous mocked placeholder here
+  // asserted nothing and was removed.
 });

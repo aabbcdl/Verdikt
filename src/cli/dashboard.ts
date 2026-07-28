@@ -4,13 +4,45 @@
 
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
+import type { UsageSummary } from "../types.js";
+import { coerceUsageSummary, formatCost, mergeUsage } from "../usage.js";
+import {
+  type LocalServerHandle,
+  dataContentType,
+  injectDefaultDataDir,
+  isAllowedDataFile,
+  isPathInside,
+  isValidRunId,
+  listenLocal,
+} from "./localServer.js";
+import { parseArgs } from "./parseArgs.js";
 
-export async function handleDashboard(): Promise<void> {
+export async function handleDashboard(args: string[] = []): Promise<void> {
+  parseArgs(args, { positional: { max: 0 } });
+  const handle = await startDashboardServer({ port: 3848 });
+  console.log("\nVerdikt Dashboard");
+  console.log(`   ${handle.url}`);
+  console.log(
+    `\n   ${handle.totalRuns} runs · ${handle.totalBenchmarks} benchmarks · ${formatCost(handle.totalUsage, 2)} total`,
+  );
+  console.log("\nPress Ctrl+C to stop.\n");
+}
+
+export interface DashboardServerHandle extends LocalServerHandle {
+  totalRuns: number;
+  totalBenchmarks: number;
+  totalCost: number;
+  totalUsage: UsageSummary;
+}
+
+export async function startDashboardServer(options: {
+  port: number;
+  host?: string;
+}): Promise<DashboardServerHandle> {
   const config = (await import("../config.js")).getConfig();
   const { readdir, stat, readFile: readFileFs } = await import("node:fs/promises");
   const stateDir = resolve(config.stateDir);
 
-  // Collect runs and benchmarks
   const runs: Array<Record<string, unknown>> = [];
   const benchmarks: Array<Record<string, unknown>> = [];
 
@@ -18,11 +50,12 @@ export async function handleDashboard(): Promise<void> {
   try {
     entries = await readdir(stateDir);
   } catch {
-    // State directory doesn't exist yet — no runs to display
     entries = [];
   }
 
   for (const entry of entries.sort()) {
+    if (!isValidRunId(entry)) continue;
+
     const dir = join(stateDir, entry);
     try {
       const summaryPath = join(dir, "summary.json");
@@ -33,41 +66,49 @@ export async function handleDashboard(): Promise<void> {
 
       if (summaryStat) {
         const summary = JSON.parse(await readFileFs(summaryPath, "utf-8"));
+        const usage = coerceUsageSummary(
+          summary.usage ?? { status: summary.usageStatus, costUsd: summary.totalCostUsd },
+          optionalNumber(summary.totalCostUsd),
+        );
         runs.push({
           runId: entry,
-          taskId: summary.taskId,
-          stopReason: summary.stopReason,
-          iterations: summary.totalIterations,
-          totalCostUsd: summary.totalCostUsd,
-          totalDurationMs: summary.totalDurationMs,
-          timestamp: summary.timestamp,
+          taskId: displayString(summary.taskId),
+          stopReason: displayString(summary.stopReason, "unknown"),
+          iterations: displayNumber(summary.totalIterations),
+          totalCostUsd: usage.costUsd ?? 0,
+          usageStatus: usage.status,
+          usage,
+          totalDurationMs: displayNumber(summary.totalDurationMs),
+          timestamp: displayString(summary.timestamp),
         });
       }
 
       if (benchmarkStat) {
         const bench = JSON.parse(await readFileFs(benchmarkPath, "utf-8"));
+        const results = Array.isArray(bench.results) ? bench.results : [];
+        const avgCostUsd = displayNumber(bench.metrics?.avgCostUsd);
+        const avgCostStatus = usageStatus(bench.metrics?.avgCostStatus, bench.metrics?.avgCostUsd);
+        const avgDurationMs = displayNumber(bench.metrics?.avgDurationMs);
         benchmarks.push({
           id: entry,
-          tasks: bench.results?.length ?? 0,
-          passed:
-            bench.results?.filter((r: Record<string, unknown>) => r.matchedExpectation).length ?? 0,
-          totalCostUsd: bench.metrics?.avgCostUsd
-            ? bench.metrics.avgCostUsd * (bench.results?.length ?? 0)
-            : 0,
-          totalDurationMs: bench.metrics?.avgDurationMs
-            ? bench.metrics.avgDurationMs * (bench.results?.length ?? 0)
-            : 0,
+          tasks: results.length,
+          passed: results.filter((r: Record<string, unknown>) => r.matchedExpectation).length,
+          totalCostUsd: avgCostUsd * results.length,
+          usageStatus: avgCostStatus,
+          totalDurationMs: avgDurationMs * results.length,
         });
       }
     } catch {
-      // Skip entries with missing or malformed JSON files
+      // Skip malformed run folders.
     }
   }
 
-  // Aggregate stats
   const totalRuns = runs.length;
   const passedRuns = runs.filter((r) => r.stopReason === "passed").length;
-  const totalCost = runs.reduce((sum, r) => sum + ((r.totalCostUsd as number) || 0), 0);
+  const totalUsage = mergeUsage(
+    ...runs.map((run) => coerceUsageSummary(run.usage, optionalNumber(run.totalCostUsd))),
+  );
+  const totalCost = totalUsage.costUsd ?? 0;
   const avgIterations =
     totalRuns > 0
       ? runs.reduce((sum, r) => sum + ((r.iterations as number) || 0), 0) / totalRuns
@@ -81,62 +122,120 @@ export async function handleDashboard(): Promise<void> {
       totalBenchmarks: benchmarks.length,
       passRate: totalRuns > 0 ? passedRuns / totalRuns : 0,
       totalCost,
+      usageStatus: totalUsage.status,
+      unknownCostRuns: runs.filter((run) => run.usageStatus !== "complete").length,
       avgIterations,
     },
   };
 
-  // Serve dashboard
   const { createServer } = await import("node:http");
-  const port = 3848;
+  const port = options.port;
   const server = createServer(async (req, res) => {
-    const url = new URL(req.url ?? "/", `http://localhost:${port}`);
+    const url = new URL(req.url ?? "/", `http://127.0.0.1:${port}`);
+
+    if (url.pathname === "/favicon.ico") {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
 
     if (url.pathname === "/" || url.pathname === "/index.html") {
       const html = await readFileFs(
         resolve(import.meta.dirname, "../../apps/ui/dashboard.html"),
         "utf-8",
       );
-      res.writeHead(200, { "Content-Type": "text/html" });
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       res.end(html);
-    } else if (url.pathname === "/data/dashboard.json") {
-      res.writeHead(200, {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      });
+      return;
+    }
+
+    if (url.pathname === "/data/dashboard.json") {
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
       res.end(JSON.stringify(dashboardData));
-    } else if (url.pathname.startsWith("/view/")) {
+      return;
+    }
+
+    if (url.pathname.startsWith("/view/")) {
       const id = url.pathname.replace("/view/", "");
+      if (!isValidRunId(id)) {
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("Invalid run ID");
+        return;
+      }
+
       const itemDir = join(stateDir, id);
+      if (!isPathInside(stateDir, itemDir)) {
+        res.writeHead(403, { "Content-Type": "text/plain" });
+        res.end("Access denied");
+        return;
+      }
+
       const isBenchmark = existsSync(join(itemDir, "benchmark.json"));
       const htmlPath = isBenchmark
         ? resolve(import.meta.dirname, "../../apps/ui/benchmark.html")
         : resolve(import.meta.dirname, "../../apps/ui/index.html");
       const html = await readFileFs(htmlPath, "utf-8");
-      res.writeHead(200, { "Content-Type": "text/html" });
-      res.end(html);
-    } else if (url.pathname.startsWith("/data/")) {
-      const filePath = join(stateDir, url.pathname.replace("/data/", ""));
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(injectDefaultDataDir(html, `/data/${encodeURIComponent(id)}`));
+      return;
+    }
+
+    if (url.pathname.startsWith("/data/")) {
+      const parts = url.pathname.replace(/^\/data\//, "").split("/");
+      const id = decodeURIComponent(parts.shift() ?? "");
+      const fileName = parts.join("/");
+
+      if (!isValidRunId(id) || !isAllowedDataFile(fileName)) {
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("Invalid data path");
+        return;
+      }
+
+      const filePath = join(stateDir, id, fileName);
+      if (!isPathInside(stateDir, filePath)) {
+        res.writeHead(403, { "Content-Type": "text/plain" });
+        res.end("Access denied");
+        return;
+      }
+
       try {
         const content = await readFileFs(filePath, "utf-8");
-        res.writeHead(200, { "Content-Type": "application/json" });
+        res.writeHead(200, { "Content-Type": dataContentType(fileName) });
         res.end(content);
       } catch {
-        // File not found or read error — return 404
-        res.writeHead(404);
+        res.writeHead(404, { "Content-Type": "text/plain" });
         res.end("Not found");
       }
-    } else {
-      res.writeHead(404);
-      res.end("Not found");
+      return;
     }
+
+    res.writeHead(404);
+    res.end("Not found");
   });
 
-  server.listen(port, () => {
-    console.log("\n📊 Verdikt Dashboard");
-    console.log(`   http://localhost:${port}`);
-    console.log(
-      `\n   ${totalRuns} runs · ${benchmarks.length} benchmarks · $${totalCost.toFixed(2)} total`,
-    );
-    console.log("\nPress Ctrl+C to stop.\n");
-  });
+  const handle = await listenLocal(server, { port, host: options.host });
+  return {
+    ...handle,
+    totalRuns,
+    totalBenchmarks: benchmarks.length,
+    totalCost,
+    totalUsage,
+  };
+}
+
+function displayString(value: unknown, fallback = "?"): string {
+  return typeof value === "string" && value.trim().length > 0 ? value : fallback;
+}
+
+function usageStatus(value: unknown, legacyCost: unknown): "complete" | "partial" | "unknown" {
+  if (value === "complete" || value === "partial" || value === "unknown") return value;
+  return optionalNumber(legacyCost) === undefined ? "unknown" : "complete";
+}
+
+function optionalNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function displayNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }

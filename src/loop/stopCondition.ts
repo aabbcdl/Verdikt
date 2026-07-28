@@ -27,8 +27,13 @@ export function decideStop(
 
   const last = iterations[iterations.length - 1];
 
-  // 1. Judge all green → success (judge is the ground truth, NOT the verifier)
-  if (last.judge.passed) {
+  // 1. Success requires objective checks plus reviewer confirmation.
+  if (
+    last.judge.passed &&
+    (last.integrity?.criticalCount ?? 0) === 0 &&
+    last.verifierVerdict.done &&
+    last.verifierVerdict.problems.length === 0
+  ) {
     return { stop: true, reason: "passed" };
   }
 
@@ -43,10 +48,14 @@ export function decideStop(
   }
 
   // 4. No progress — consecutive iterations with identical failure signatures
-  if (iterations.length >= 2) {
+  if (iterations.length >= 3) {
+    const beforePrev = iterations[iterations.length - 3];
     const prev = iterations[iterations.length - 2];
     const curr = iterations[iterations.length - 1];
-    if (sameFailures(prev.judge, curr.judge)) {
+    if (
+      (sameFailures(beforePrev.judge, prev.judge) && sameFailures(prev.judge, curr.judge)) ||
+      (sameVerifierObjections(beforePrev, prev) && sameVerifierObjections(prev, curr))
+    ) {
       return { stop: true, reason: "no_progress" };
     }
   }
@@ -59,8 +68,8 @@ export function decideStop(
  * Returns true if the exact same checks failed with the same error signatures.
  */
 export function sameFailures(a: JudgeResult, b: JudgeResult): boolean {
-  const aFails = a.checks.filter((c) => !c.passed);
-  const bFails = b.checks.filter((c) => !c.passed);
+  const aFails = blockingFailedChecks(a);
+  const bFails = blockingFailedChecks(b);
 
   // Different number of failing checks → not stuck
   if (aFails.length !== bFails.length) return false;
@@ -81,6 +90,27 @@ export function sameFailures(a: JudgeResult, b: JudgeResult): boolean {
     const sigA = af.output.slice(-500).trim();
     const sigB = bf.output.slice(-500).trim();
     if (sigA !== sigB) return false;
+  }
+
+  return true;
+}
+
+function blockingFailedChecks(judge: JudgeResult): JudgeResult["checks"] {
+  const optionalStepIds = new Set(
+    judge.stepResults?.filter((step) => !step.required).map((step) => step.id) ?? [],
+  );
+  return judge.checks.filter((check) => !check.passed && !optionalStepIds.has(check.name));
+}
+
+function sameVerifierObjections(a: IterationRecord, b: IterationRecord): boolean {
+  const aProblems = a.verifierVerdict.problems.map((p) => p.trim()).filter(Boolean);
+  const bProblems = b.verifierVerdict.problems.map((p) => p.trim()).filter(Boolean);
+
+  if (aProblems.length === 0 || aProblems.length !== bProblems.length) return false;
+  if (a.verifierVerdict.done || b.verifierVerdict.done) return false;
+
+  for (let i = 0; i < aProblems.length; i++) {
+    if (aProblems[i] !== bProblems[i]) return false;
   }
 
   return true;
