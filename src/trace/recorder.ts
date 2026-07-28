@@ -16,6 +16,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import type { IterationRecord, RunResult, StopReason, TaskSpec } from "../types.js";
+import { buildVerdictResult } from "../verdict/result.js";
 import { readJsonFile, writeJsonAtomic } from "./atomicJson.js";
 
 const RUN_ID_PATTERN = /^[a-zA-Z0-9\-_]{1,64}$/;
@@ -61,6 +62,7 @@ export async function recordIteration(runDir: string, record: IterationRecord): 
  */
 export async function writeSummary(runDir: string, result: RunResult): Promise<void> {
   const task = await readSavedTask(runDir);
+  const timestamp = new Date().toISOString();
   const summary = {
     // Run metadata
     runId: result.runId ?? null,
@@ -70,7 +72,7 @@ export async function writeSummary(runDir: string, result: RunResult): Promise<v
     runSource: task?.runSource ?? "unknown",
     stages: task?.stages ?? [],
     task: task ?? null,
-    timestamp: new Date().toISOString(),
+    timestamp,
 
     // Status
     status: result.reason,
@@ -152,7 +154,11 @@ export async function writeSummary(runDir: string, result: RunResult): Promise<v
     }),
   };
 
-  await writeJsonAtomic(join(runDir, "summary.json"), summary, { backup: true });
+  const verdict = buildVerdictResult(result, task, { createdAt: timestamp });
+  await Promise.all([
+    writeJsonAtomic(join(runDir, "summary.json"), summary, { backup: true }),
+    writeJsonAtomic(join(runDir, "verdict.json"), verdict, { backup: true }),
+  ]);
 }
 
 async function readSavedTask(runDir: string): Promise<TaskSpec | null> {

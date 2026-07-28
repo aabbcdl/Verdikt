@@ -21,7 +21,13 @@ export function isValidRunId(runId: string): boolean {
 }
 
 export function isAllowedDataFile(fileName: string): boolean {
-  return ["summary.json", "iterations.jsonl", "benchmark.json", "benchmark.md"].includes(fileName);
+  return [
+    "summary.json",
+    "verdict.json",
+    "iterations.jsonl",
+    "benchmark.json",
+    "benchmark.md",
+  ].includes(fileName);
 }
 
 export function dataContentType(fileName: string): string {

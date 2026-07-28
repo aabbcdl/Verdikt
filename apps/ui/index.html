@@ -252,16 +252,200 @@
   .severity-critical, .severity-high { background: #fff0ef; color: #b83232; }
   .severity-medium { background: #fff7e8; color: #9b6515; }
   .severity-low { background: #edf4ff; color: #245fc2; }
+  .verdict-page[hidden] { display: none; }
+  .verdict-hero {
+    margin-bottom: 18px;
+    padding: 26px;
+    border: 1px solid var(--border);
+    border-left: 5px solid var(--blue);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: 0 8px 28px rgba(30, 50, 80, 0.06);
+  }
+  .verdict-hero.pass { border-left-color: var(--green); }
+  .verdict-hero.fail { border-left-color: var(--red); }
+  .verdict-hero.needs_review { border-left-color: var(--yellow); }
+  .verdict-hero.incomplete { border-left-color: var(--text-dim); }
+  .verdict-status {
+    margin-bottom: 8px;
+    color: var(--blue);
+    font-size: 30px;
+    font-weight: 850;
+    line-height: 1;
+  }
+  .verdict-hero.pass .verdict-status { color: var(--green); }
+  .verdict-hero.fail .verdict-status { color: var(--red); }
+  .verdict-hero.needs_review .verdict-status { color: var(--yellow); }
+  .verdict-hero.incomplete .verdict-status { color: var(--text-dim); }
+  .verdict-title {
+    margin-bottom: 7px;
+    font-size: 22px;
+  }
+  .verdict-summary {
+    max-width: 720px;
+    margin-bottom: 0;
+    color: var(--text-dim);
+  }
+  .verdict-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 18px;
+  }
+  .action-button {
+    min-height: 38px;
+    padding: 8px 13px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .action-button.primary {
+    border-color: var(--blue);
+    background: var(--blue);
+    color: #ffffff;
+  }
+  .verdict-section {
+    margin-bottom: 18px;
+    padding: 22px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+  }
+  .section-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .section-heading h2 { margin-bottom: 0; }
+  .section-count {
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+  .criteria-list { display: grid; }
+  .criterion {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: start;
+    padding: 13px 0;
+    border-top: 1px solid var(--border);
+  }
+  .criterion:first-child { border-top: 0; }
+  .criterion-mark {
+    font-size: 17px;
+    font-weight: 850;
+    line-height: 1.35;
+  }
+  .criterion.pass .criterion-mark { color: var(--green); }
+  .criterion.fail .criterion-mark { color: var(--red); }
+  .criterion.needs_review .criterion-mark,
+  .criterion.warning .criterion-mark { color: var(--yellow); }
+  .criterion.skipped .criterion-mark { color: var(--text-dim); }
+  .criterion-name {
+    color: var(--text-bright);
+    font-weight: 750;
+  }
+  .criterion-summary {
+    margin-top: 3px;
+    color: var(--text-dim);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+  .evidence-source {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 700;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .evidence-source.claimed { color: #8b6670; font-weight: 600; }
+  .verdict-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .fact-list {
+    display: grid;
+    gap: 9px;
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+  .fact {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 9px;
+    border-bottom: 1px solid var(--border);
+  }
+  .fact:last-child { padding-bottom: 0; border-bottom: 0; }
+  .fact strong { color: var(--text-bright); text-align: right; }
+  .change-list {
+    display: grid;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .audit-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 18px;
+    padding: 16px 18px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text-bright);
+    font: inherit;
+    font-weight: 750;
+    cursor: pointer;
+  }
+  .audit-list {
+    display: grid;
+    gap: 10px;
+  }
+  .audit-item {
+    padding-bottom: 11px;
+    border-bottom: 1px solid var(--border);
+  }
+  .audit-item:last-child { padding-bottom: 0; border-bottom: 0; }
+  .audit-item.agent-claim { opacity: .68; }
+  .audit-item-title {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--text-bright);
+    font-size: 13px;
+    font-weight: 750;
+  }
+  .audit-item p {
+    margin: 4px 0 0;
+    color: var(--text-dim);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
   @media (max-width: 760px) {
     .app { width: min(100% - 20px, 980px); padding-top: 12px; }
     .panel { padding: 17px; }
     .grid, .safety-grid { grid-template-columns: 1fr 1fr; }
     .agent-grid { grid-template-columns: 1fr; }
+    .verdict-columns { grid-template-columns: 1fr; }
   }
   @media (max-width: 460px) {
     .brand-mark { display: none; }
     h1 { font-size: 20px; }
     .grid, .safety-grid { grid-template-columns: 1fr; }
+    .verdict-hero, .verdict-section { padding: 17px; }
+    .verdict-status { font-size: 25px; }
+    .criterion { grid-template-columns: 24px minmax(0, 1fr); }
+    .evidence-source { grid-column: 2; text-align: left; }
   }
 </style>
 </head>
@@ -275,7 +459,55 @@
     </div>
   </header>
 
-  <section class="panel" aria-labelledby="overview-title">
+  <div class="verdict-page" id="verdict-page" hidden>
+    <section class="verdict-hero" id="verdict-hero" aria-labelledby="verdict-title">
+      <div class="verdict-status" id="verdict-status">INCOMPLETE</div>
+      <h2 class="verdict-title" id="verdict-title">正在读取判定结果</h2>
+      <p class="verdict-summary" id="verdict-summary"></p>
+      <div class="verdict-actions">
+        <button class="action-button" type="button" onclick="scrollToChanges()">查看修改</button>
+        <button class="action-button primary" id="verdict-primary-action" type="button" onclick="returnToWorkbench()">返回工作台处理</button>
+      </div>
+    </section>
+
+    <section class="verdict-section" aria-labelledby="criteria-title">
+      <div class="section-heading">
+        <h2 id="criteria-title">验收条件</h2>
+        <span class="section-count" id="criteria-count"></span>
+      </div>
+      <div class="criteria-list" id="criteria-list"></div>
+    </section>
+
+    <div class="verdict-columns">
+      <section class="verdict-section" aria-labelledby="scope-title">
+        <h2 id="scope-title">修改范围</h2>
+        <div class="fact-list" id="scope-info"></div>
+      </section>
+      <section class="verdict-section" aria-labelledby="integrity-title">
+        <h2 id="integrity-title">完整性</h2>
+        <div class="fact-list" id="integrity-info"></div>
+      </section>
+    </div>
+
+    <section class="verdict-section" id="changes-panel" aria-labelledby="changes-title">
+      <div class="section-heading">
+        <h2 id="changes-title">修改文件</h2>
+        <span class="section-count" id="changes-count"></span>
+      </div>
+      <div class="change-list" id="changes-list"></div>
+    </section>
+
+    <button class="audit-toggle" id="audit-toggle" type="button" aria-expanded="false" onclick="toggleAudit()">
+      <span>查看证据与运行记录</span>
+      <span aria-hidden="true">›</span>
+    </button>
+    <section class="verdict-section" id="audit-panel" aria-labelledby="audit-title" hidden>
+      <h2 id="audit-title">证据与运行记录</h2>
+      <div class="audit-list" id="audit-list"></div>
+    </section>
+  </div>
+
+  <section class="panel" id="overview-panel" aria-labelledby="overview-title">
     <div class="panel-heading"><div><h2 id="overview-title">结果概览</h2><p>这次运行的结论、花费和补丁状态。</p></div></div>
     <div class="grid" id="status-grid"></div>
   </section>
@@ -295,12 +527,12 @@
     <div id="patch-info"></div>
   </section>
 
-  <section class="panel" aria-labelledby="iterations-title">
+  <section class="panel" id="iterations-panel" aria-labelledby="iterations-title">
     <h2 id="iterations-title">轮次详情</h2>
     <div id="iterations"></div>
   </section>
 
-  <section class="panel" aria-labelledby="evidence-title">
+  <section class="panel" id="evidence-panel" aria-labelledby="evidence-title">
     <h2 id="evidence-title">证据文件</h2>
     <div class="table-wrap" id="evidence"></div>
   </section>
@@ -318,6 +550,31 @@ async function loadRun() {
   }
 
   basePath = basePath.replace(/\\/g, '/');
+
+  let verdictRes = null;
+  try {
+    verdictRes = await fetch(`${basePath}/verdict.json`);
+  } catch {
+    verdictRes = null;
+  }
+  if (verdictRes && verdictRes.ok) {
+    try {
+      const verdict = await verdictRes.json();
+      if (!isVerdictV1(verdict)) {
+        renderVerdictError('判定结果格式无效或版本不受支持。');
+        return;
+      }
+      renderVerdict(verdict, basePath);
+      return;
+    } catch {
+      renderVerdictError('判定结果文件无法读取，不能确认这项修改是否通过。');
+      return;
+    }
+  }
+  if (verdictRes && verdictRes.status !== 404) {
+    renderVerdictError(`判定结果读取失败（HTTP ${verdictRes.status}）。`);
+    return;
+  }
 
   try {
     const summaryRes = await fetch(`${basePath}/summary.json`);
@@ -343,6 +600,300 @@ async function loadRun() {
   } catch (err) {
     document.getElementById('run-id').textContent = `读取失败：${safeText(err && err.message, '无法读取运行记录')}`;
   }
+}
+
+function renderVerdict(verdict, basePath = '') {
+  const status = safeText(verdict && verdict.status, 'incomplete');
+  const summary = verdict && verdict.summary && typeof verdict.summary === 'object'
+    ? verdict.summary
+    : {};
+  const run = verdict && verdict.run && typeof verdict.run === 'object' ? verdict.run : {};
+  const criteria = Array.isArray(verdict && verdict.criteria) ? verdict.criteria : [];
+  const evidence = Array.isArray(verdict && verdict.evidence) ? verdict.evidence : [];
+  const scope = verdict && verdict.scope && typeof verdict.scope === 'object' ? verdict.scope : {};
+  const integrity = verdict && verdict.integrity && typeof verdict.integrity === 'object'
+    ? verdict.integrity
+    : {};
+  const evidenceById = new Map(evidence.map((item) => [safeText(item && item.id, ''), item]));
+
+  document.getElementById('verdict-page').hidden = false;
+  for (const id of [
+    'overview-panel',
+    'review-panel',
+    'safety-panel',
+    'patch-panel',
+    'iterations-panel',
+    'evidence-panel',
+  ]) {
+    document.getElementById(id).hidden = true;
+  }
+
+  document.getElementById('run-id').textContent = [
+    safeText(run.runId, 'unknown'),
+    safeText(run.taskId, ''),
+    formatDate(verdict.createdAt),
+  ].filter(Boolean).join(' · ');
+  const hero = document.getElementById('verdict-hero');
+  hero.className = `verdict-hero ${escapeHtml(status)}`;
+  document.getElementById('verdict-status').textContent = verdictStatusLabel(status);
+  document.getElementById('verdict-title').textContent = safeText(
+    summary.title,
+    '尚未形成可靠结论',
+  );
+  document.getElementById('verdict-summary').textContent = safeText(
+    summary.explanation,
+    'Verdikt 无法确认这项修改是否可以接受。',
+  );
+
+  const requiredPassed = safeNumber(summary.requiredPassed);
+  const requiredTotal = safeNumber(summary.requiredTotal);
+  document.getElementById('criteria-count').textContent =
+    requiredTotal > 0 ? `${requiredPassed}/${requiredTotal} 项必需条件通过` : '没有可确认的必需条件';
+  document.getElementById('criteria-list').innerHTML = criteria.length
+    ? criteria.map((criterion) => renderCriterion(criterion, evidenceById)).join('')
+    : '<div class="empty">没有可用的验收条件记录。</div>';
+
+  const changedFiles = Array.isArray(scope.changedFiles) ? scope.changedFiles : [];
+  const outOfScopeFiles = Array.isArray(scope.outOfScopeFiles) ? scope.outOfScopeFiles : [];
+  document.getElementById('scope-info').innerHTML = [
+    renderFact('范围检查', checkStatusLabel(scope.status)),
+    renderFact('修改文件', String(safeNumber(scope.filesChanged) || changedFiles.length)),
+    renderFact('越界修改', outOfScopeFiles.length ? `${outOfScopeFiles.length} 项` : '未发现'),
+    renderFact(
+      '改动行数',
+      formatLineChanges(scope.linesAdded, scope.linesDeleted),
+    ),
+  ].join('');
+
+  document.getElementById('integrity-info').innerHTML = [
+    renderFact('完整性检查', checkStatusLabel(integrity.status)),
+    renderFact('测试是否被修改', booleanFindingLabel(integrity.testsModified)),
+    renderFact('验收是否被削弱', booleanFindingLabel(integrity.acceptanceWeakened)),
+    renderFact('证据记录', integrity.evidenceRecorded ? '已记录' : '无法确认'),
+  ].join('');
+
+  document.getElementById('changes-count').textContent = `${changedFiles.length} 个文件`;
+  document.getElementById('changes-list').innerHTML = changedFiles.length
+    ? changedFiles.map((file) => `<div>${escapeHtml(file)}</div>`).join('')
+    : '<div class="empty">没有记录到文件修改。</div>';
+
+  const findings = Array.isArray(verdict && verdict.findings) ? verdict.findings : [];
+  const auditItems = [
+    ...evidence.map((item) => renderEvidenceItem(item)),
+    ...findings.map((finding) => renderFindingItem(finding)),
+  ];
+  if (basePath) {
+    auditItems.push(
+      `<div class="audit-item"><div class="audit-item-title"><span>原始运行记录</span><span>文件</span></div><p>${escapeHtml(basePath)}/summary.json · ${escapeHtml(basePath)}/iterations.jsonl</p></div>`,
+    );
+  }
+  document.getElementById('audit-list').innerHTML = auditItems.length
+    ? auditItems.join('')
+    : '<div class="empty">没有可展开的证据记录。</div>';
+  document.getElementById('audit-panel').hidden = true;
+  document.getElementById('audit-toggle').setAttribute?.('aria-expanded', 'false');
+
+  const primaryAction = document.getElementById('verdict-primary-action');
+  primaryAction.textContent = recommendationLabel(verdict.recommendation);
+}
+
+function renderVerdictError(message) {
+  renderVerdict({
+    version: 1,
+    run: {
+      runId: 'unknown',
+      stopReason: 'provider_error',
+      totalDurationMs: 0,
+      usageStatus: 'unknown',
+    },
+    status: 'incomplete',
+    summary: {
+      title: '尚未形成可靠结论',
+      explanation: message,
+      requiredPassed: 0,
+      requiredTotal: 0,
+    },
+    recommendation: 'none',
+    scope: {
+      status: 'skipped',
+      expectedPaths: [],
+      changedFiles: [],
+      outOfScopeFiles: [],
+      filesChanged: 0,
+    },
+    criteria: [],
+    integrity: {
+      status: 'skipped',
+      testsModified: null,
+      acceptanceWeakened: null,
+      evidenceRecorded: false,
+      criticalCount: 0,
+      warningCount: 0,
+      findings: [],
+    },
+    evidence: [],
+    findings: [],
+    provenance: {},
+    createdAt: new Date().toISOString(),
+  });
+}
+
+function renderCriterion(criterion, evidenceById) {
+  const status = safeText(criterion && criterion.status, 'skipped');
+  const evidenceIds = Array.isArray(criterion && criterion.evidenceIds)
+    ? criterion.evidenceIds
+    : [];
+  const sourceEvidence = evidenceIds.map((id) => evidenceById.get(id)).find(Boolean);
+  const source = sourceEvidence ? evidenceSourceLabel(sourceEvidence.source) : '无独立证据';
+  const claimed = sourceEvidence && sourceEvidence.assurance === 'claimed' ? ' claimed' : '';
+  return `
+    <div class="criterion ${escapeHtml(status)}">
+      <div class="criterion-mark" aria-hidden="true">${criterionMark(status)}</div>
+      <div>
+        <div class="criterion-name">${escapeHtml(criterion && criterion.name, '未命名条件')}</div>
+        <div class="criterion-summary">${escapeHtml(criterion && criterion.summary, '没有结果摘要')}</div>
+      </div>
+      <div class="evidence-source${claimed}">${escapeHtml(source)}</div>
+    </div>
+  `;
+}
+
+function renderEvidenceItem(item) {
+  const source = evidenceSourceLabel(item && item.source);
+  const assurance = evidenceAssuranceLabel(item && item.assurance);
+  const claimClass = item && item.source === 'agent_claim' ? ' agent-claim' : '';
+  return `
+    <div class="audit-item${claimClass}">
+      <div class="audit-item-title">
+        <span>${escapeHtml(item && item.title, '未命名证据')}</span>
+        <span>${escapeHtml(source)} · ${escapeHtml(assurance)}</span>
+      </div>
+      <p>${escapeHtml(item && item.summary, '没有摘要')}</p>
+    </div>
+  `;
+}
+
+function renderFindingItem(finding) {
+  return `
+    <div class="audit-item">
+      <div class="audit-item-title">
+        <span>${escapeHtml(finding && finding.title, '审查发现')}</span>
+        <span>${escapeHtml(finding && finding.severity, '')}</span>
+      </div>
+      <p>${escapeHtml(finding && finding.detail, '没有详情')}</p>
+    </div>
+  `;
+}
+
+function renderFact(label, value) {
+  return `<div class="fact"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
+}
+
+function toggleAudit() {
+  const panel = document.getElementById('audit-panel');
+  const toggle = document.getElementById('audit-toggle');
+  panel.hidden = !panel.hidden;
+  toggle.setAttribute?.('aria-expanded', panel.hidden ? 'false' : 'true');
+}
+
+function scrollToChanges() {
+  document.getElementById('changes-panel').scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+}
+
+function returnToWorkbench() {
+  if (window.location && String(window.location.pathname || '').startsWith('/view/')) {
+    window.location.assign('/');
+    return;
+  }
+  if (window.history && window.history.length > 1) window.history.back();
+}
+
+function isVerdictV1(value) {
+  return Boolean(
+    value &&
+    value.version === 1 &&
+    ['pass', 'fail', 'needs_review', 'incomplete'].includes(value.status) &&
+    value.run &&
+    value.summary &&
+    Array.isArray(value.criteria) &&
+    Array.isArray(value.evidence),
+  );
+}
+
+function verdictStatusLabel(status) {
+  const labels = {
+    pass: 'PASS',
+    fail: 'FAIL',
+    needs_review: 'NEEDS REVIEW',
+    incomplete: 'INCOMPLETE',
+  };
+  return labels[status] || 'INCOMPLETE';
+}
+
+function criterionMark(status) {
+  const labels = {
+    pass: '✓',
+    fail: '×',
+    needs_review: '!',
+    warning: '!',
+    skipped: '–',
+  };
+  return labels[status] || '–';
+}
+
+function checkStatusLabel(status) {
+  const labels = {
+    pass: '通过',
+    fail: '未通过',
+    needs_review: '需要判断',
+    warning: '有提醒',
+    skipped: '未设置',
+  };
+  return labels[status] || '无法确认';
+}
+
+function evidenceSourceLabel(source) {
+  const labels = {
+    verified_execution: '真实执行',
+    diff_inspection: '差异检查',
+    independent_review: '独立审查',
+    agent_claim: 'Agent 自述',
+    user_confirmation: '用户确认',
+  };
+  return labels[source] || '来源未知';
+}
+
+function evidenceAssuranceLabel(assurance) {
+  const labels = {
+    verified: '已验证',
+    attested: '已确认',
+    claimed: '仅为声明',
+  };
+  return labels[assurance] || '无法确认';
+}
+
+function recommendationLabel(recommendation) {
+  const labels = {
+    accept_change: '返回工作台应用修改',
+    continue_fixing: '返回工作台继续修复',
+    human_review: '返回工作台处理',
+    discard: '返回工作台丢弃',
+    none: '返回工作台',
+  };
+  return labels[recommendation] || '返回工作台';
+}
+
+function booleanFindingLabel(value) {
+  if (value === true) return '是';
+  if (value === false) return '否';
+  return '无法确认';
+}
+
+function formatLineChanges(added, deleted) {
+  const hasAdded = typeof added === 'number' && Number.isFinite(added);
+  const hasDeleted = typeof deleted === 'number' && Number.isFinite(deleted);
+  if (!hasAdded && !hasDeleted) return '未记录';
+  return `+${hasAdded ? added : 0} / -${hasDeleted ? deleted : 0}`;
 }
 
 function render(summary, iterations, basePath, options = {}) {

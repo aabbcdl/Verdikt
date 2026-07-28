@@ -47,6 +47,7 @@ const ROOT_EVIDENCE_FILES = [
   "iterations.jsonl",
   "events.jsonl",
   "summary.json",
+  "verdict.json",
   "state.json",
   "approval.json",
   "action-approvals.json",

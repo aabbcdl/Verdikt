@@ -15,6 +15,7 @@ import { appendRunEvent, readRunEvents } from "../trace/events.js";
 import type { ApprovalRequest, RunAgentPhase, RunPhaseUpdate, TaskSpec } from "../types.js";
 import { coerceUsageSummary, formatCost } from "../usage.js";
 import { validateTaskSpec } from "../validation.js";
+import { readVerdictResult } from "../verdict/store.js";
 import { forkRunFromIteration, rewindRunToIteration } from "./checkpointActions.js";
 import { runDoctorChecks } from "./doctor.js";
 import {
@@ -392,6 +393,53 @@ export async function startAppServer(options: {
           saved,
         }),
       );
+      return;
+    }
+
+    // API: Canonical, versioned verdict for a saved run.
+    if (url.pathname.startsWith("/api/verdict/") && req.method === "GET") {
+      const runId = url.pathname.slice("/api/verdict/".length);
+      if (!isValidRunId(runId)) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid run ID" }));
+        return;
+      }
+
+      const runDir = resolve(stateDir, runId);
+      if (!isPathInside(stateDir, runDir)) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Access denied" }));
+        return;
+      }
+
+      const verdict = await readVerdictResult(runDir);
+      if (verdict.status === "ok") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(verdict.verdict));
+        return;
+      }
+      if (verdict.status === "missing") {
+        const legacy = existsSync(join(runDir, "summary.json"));
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            error: legacy ? "Verdict result is not available for this legacy run" : "Run not found",
+            legacy,
+          }),
+        );
+        return;
+      }
+      if (verdict.status === "unsupported") {
+        res.writeHead(422, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            error: `Unsupported verdict version: ${String(verdict.version)}`,
+          }),
+        );
+        return;
+      }
+      res.writeHead(422, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: verdict.error }));
       return;
     }
 
