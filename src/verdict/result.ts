@@ -302,7 +302,7 @@ function resolveStatus(
     required.length > 0 &&
     required.every((criterion) => criterion.status === "pass")
   ) {
-    return "pass";
+    return integrity.status === "pass" ? "pass" : "needs_review";
   }
   return "incomplete";
 }

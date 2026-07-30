@@ -292,4 +292,21 @@ describe("buildVerdictResult", () => {
       criticalCount: 1,
     });
   });
+
+  it("requires human review when objective checks passed without an integrity result", () => {
+    const verdict = buildVerdictResult(
+      passingResult({
+        integritySummary: undefined,
+        evidenceManifestPath: undefined,
+      }),
+      TASK,
+    );
+
+    expect(verdict.status).toBe("needs_review");
+    expect(verdict.recommendation).toBe("human_review");
+    expect(verdict.integrity).toMatchObject({
+      status: "skipped",
+      evidenceRecorded: false,
+    });
+  });
 });

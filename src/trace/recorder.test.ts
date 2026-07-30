@@ -136,8 +136,8 @@ describe("Trace Recorder", () => {
       expect(summary.totalCostUsd).toBe(0.5);
       expect(verdict).toMatchObject({
         version: 1,
-        status: "pass",
-        recommendation: "accept_change",
+        status: "needs_review",
+        recommendation: "human_review",
         run: {
           runId: "test-run",
           taskId: "my-task",
