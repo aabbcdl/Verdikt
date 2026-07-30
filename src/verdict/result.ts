@@ -91,11 +91,7 @@ function buildCriteria(
     for (const step of stepResults) {
       const configured = configuredSteps.get(step.id);
       const evidenceId = `command:${step.id}`;
-      const status: VerdictCheckStatus = step.passed
-        ? "pass"
-        : step.required
-          ? "fail"
-          : "warning";
+      const status: VerdictCheckStatus = step.passed ? "pass" : step.required ? "fail" : "warning";
       const output = firstUsefulOutput(step.stdout, step.stderr, checksByName.get(step.id)?.output);
       criteria.push({
         id: step.id,
@@ -393,9 +389,7 @@ function evidenceKind(id: string): VerdictEvidenceKind {
 }
 
 function displayName(value: string): string {
-  return value
-    .replaceAll(/[-_]+/g, " ")
-    .replace(/\b\w/g, (character) => character.toUpperCase());
+  return value.replaceAll(/[-_]+/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function isTestModificationRule(rule: string): boolean {

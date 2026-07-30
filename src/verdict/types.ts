@@ -2,12 +2,7 @@ import type { StopReason, UsageStatus } from "../types.js";
 
 export type VerdictStatus = "pass" | "fail" | "needs_review" | "incomplete";
 
-export type VerdictCheckStatus =
-  | "pass"
-  | "fail"
-  | "needs_review"
-  | "warning"
-  | "skipped";
+export type VerdictCheckStatus = "pass" | "fail" | "needs_review" | "warning" | "skipped";
 
 export type VerdictRecommendation =
   | "accept_change"
