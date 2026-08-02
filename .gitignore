@@ -37,6 +37,9 @@ coverage/
 *.tmp
 *.temp
 
+# Browser test artifacts
+.playwright-cli/
+
 # Demo submodules (independent git repos, not part of this project)
 examples/demo-cascade/
 examples/demo-cascade-deep/
