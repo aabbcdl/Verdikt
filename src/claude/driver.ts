@@ -15,6 +15,8 @@ import { unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getConfig } from "../config.js";
+import { buildProviderEnvironment } from "../provider/runtime.js";
+import { providerSettingsFromConfig } from "../provider/settings.js";
 import type { DriverFailure, DriverInput, DriverOutput, UsageSummary } from "../types.js";
 import { mergeUsage, usageFromClaudeResult, usageFromLegacyCost } from "../usage.js";
 import { killProcessTree } from "./processTree.js";
@@ -210,7 +212,7 @@ async function callClaudeOnce(
       stdio: ["pipe", "pipe", "pipe"],
       shell: invocation.shell,
       env: {
-        ...process.env,
+        ...buildProviderEnvironment(process.env, providerSettingsFromConfig(config)),
         TERM: "dumb",
         NO_COLOR: "1",
         ...(input.commandPolicy

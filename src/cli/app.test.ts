@@ -744,8 +744,8 @@ describe("App server", () => {
     new Script(script, { filename: "app.html <script>" }).runInContext(context);
     await new Script("loadDoctor()").runInContext(context);
 
-    expect(elements.doctorSummary.textContent).toContain("\u9996\u6b21\u8bf7\u6c42");
-    expect(elements.doctorList.innerHTML).toContain("\u5f85\u9996\u6b21\u8bf7\u6c42\u786e\u8ba4");
+    expect(elements.doctorSummary.textContent).toContain("真实连接测试");
+    expect(elements.doctorList.innerHTML).toContain("等待连接测试");
   });
 
   it("serves run details with data paths that load in the viewer", async () => {

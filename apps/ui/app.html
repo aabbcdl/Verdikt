@@ -697,7 +697,7 @@
   .brand { display: flex; align-items: center; gap: 12px; }
   .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--blue); color: #fff; font-weight: 800; }
   h1 { font-size: 23px; }
-  .workspace-nav { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 5px; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 14px; background: rgba(255,255,255,.8); position: sticky; top: 8px; z-index: 20; box-shadow: 0 8px 24px rgba(30,50,80,.07); backdrop-filter: blur(12px); }
+  .workspace-nav { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 5px; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 14px; background: rgba(255,255,255,.8); position: sticky; top: 8px; z-index: 20; box-shadow: 0 8px 24px rgba(30,50,80,.07); backdrop-filter: blur(12px); }
   .nav-btn { min-height: 44px; border: 0; border-radius: 10px; background: transparent; color: var(--text-dim); font-weight: 700; cursor: pointer; }
   .nav-btn.active { background: #fff; color: var(--blue); box-shadow: 0 2px 10px rgba(30,50,80,.09); }
   .view[hidden], [hidden] { display: none !important; }
@@ -724,6 +724,40 @@
   .primary-run { width:100%; min-height:58px; margin-top:14px; border:0; border-radius:12px; background:var(--blue); color:white; font-size:17px; box-shadow:0 10px 24px rgba(36,107,253,.22); }
   .primary-run:hover { color:white; filter:brightness(.97); }
   .safety-note { margin:12px 0 0; text-align:center; }
+  .setup-band { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:16px; align-items:center; margin:-4px 0 22px; padding:16px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+  .setup-band strong { display:block; margin-bottom:4px; color:var(--text-bright); font-size:15px; }
+  .setup-band p { margin:0; color:var(--text-dim); font-size:13px; line-height:1.5; }
+  .setup-band.ready strong { color:var(--green); }
+  .setup-band.attention strong { color:var(--yellow); }
+  .setup-band.blocked strong { color:var(--red); }
+  .path-controls { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:8px; }
+  .project-status { display:grid; gap:5px; margin-top:9px; padding:11px 12px; border-left:3px solid var(--border); background:var(--surface-2); color:var(--text-dim); font-size:12px; line-height:1.5; }
+  .project-status.ready { border-left-color:var(--green); background:#f1f9f5; color:#285f48; }
+  .project-status.blocked { border-left-color:var(--red); background:#fff4f3; color:#8f2d2d; }
+  .project-status.loading { border-left-color:var(--blue); color:#245fc2; }
+  .acceptance-summary { display:flex; flex-wrap:wrap; gap:8px; align-items:center; min-height:44px; padding:10px 12px; border:1px solid var(--border); border-radius:9px; background:var(--surface-2); color:var(--text-dim); font-size:13px; }
+  .acceptance-chip { display:inline-flex; align-items:center; min-height:28px; padding:4px 9px; border:1px solid #bfd2ff; border-radius:999px; background:#edf4ff; color:#245fc2; font-size:12px; font-weight:700; }
+  .settings-section { padding:22px 0; border-top:1px solid var(--border); }
+  .settings-section:first-of-type { padding-top:0; border-top:0; }
+  .settings-section h3 { margin:0 0 6px; color:var(--text-bright); font-size:16px; }
+  .settings-section > p { margin:0 0 14px; color:var(--text-dim); font-size:13px; line-height:1.55; }
+  .install-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:center; padding:14px 0; }
+  .install-row + .install-row { border-top:1px solid var(--border); }
+  .install-copy strong { display:block; margin-bottom:4px; color:var(--text-bright); }
+  .install-copy span { display:block; color:var(--text-dim); font-size:12px; line-height:1.5; }
+  .install-command { display:flex; align-items:center; gap:8px; margin-top:9px; }
+  .install-command code { min-width:0; padding:7px 9px; border:1px solid var(--border); border-radius:6px; background:var(--surface-2); font-family:var(--mono); font-size:12px; overflow-wrap:anywhere; }
+  .segmented-control { display:grid; grid-template-columns:1fr 1fr; gap:0; margin:14px 0 20px; padding:4px; border:1px solid var(--border); border-radius:10px; background:var(--surface-2); }
+  .segmented-option { display:flex; align-items:center; justify-content:center; min-height:44px; margin:0; padding:8px 12px; border-radius:7px; color:var(--text-dim); cursor:pointer; }
+  .segmented-option:has(input:checked) { background:#fff; color:var(--blue); box-shadow:0 1px 5px rgba(30,50,80,.12); }
+  .segmented-option input { width:auto; min-height:0; margin:0 8px 0 0; }
+  .provider-fields { display:grid; gap:16px; }
+  .credential-controls { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }
+  .connection-result { min-height:46px; margin-top:16px; padding:12px 14px; border-left:3px solid var(--border); background:var(--surface-2); color:var(--text-dim); font-size:13px; line-height:1.55; }
+  .connection-result.success { border-left-color:var(--green); background:#edf8f2; color:#1d5b3c; }
+  .connection-result.error { border-left-color:var(--red); background:#fff3f2; color:#8f2d2d; }
+  .connection-result.loading { border-left-color:var(--blue); color:#245fc2; }
+  .provider-note { margin-top:12px; padding:11px 12px; border:1px solid #efcf91; border-radius:8px; background:#fff9ed; color:#74450d; font-size:12px; line-height:1.55; }
   .status-hero { border:1px solid var(--border); border-radius:16px; padding:24px; background:linear-gradient(135deg,#fff,#f6f9ff); }
   .status-hero.attention { border-color:#e5b75d; background:#fffaf0; }
   .status-hero.stalled { border-color:#e3914b; background:#fff8f1; }
@@ -813,15 +847,20 @@
     .config-preview-grid { grid-template-columns:1fr; }
     .config-preview-header { flex-direction:column; }
     .status-top { flex-direction:column; }
+    .setup-band,.install-row { grid-template-columns:1fr; }
+    .path-controls { grid-template-columns:1fr 1fr; }
+    .path-controls input { grid-column:1 / -1; }
   }
   @media (max-width: 460px) {
     html { scroll-padding-top: 58px; }
     .brand-mark { display:none; }
     h1 { font-size:20px; }
     .workspace-nav { gap:2px; }
-    .nav-btn { font-size:13px; padding:6px; }
+    .nav-btn { font-size:12px; padding:5px 2px; }
     .task-mode-grid,.runtime-grid,.result-grid { grid-template-columns:1fr; }
-    .primary-run { position:sticky; bottom:8px; z-index:10; }
+    .primary-run { position:static; }
+    .segmented-control { grid-template-columns:1fr; }
+    .credential-controls { grid-template-columns:1fr; }
   }
 
 </style>
@@ -843,6 +882,7 @@
     <button class="nav-btn active" id="navNew" type="button" aria-current="page" onclick="switchView('new')">新任务</button>
     <button class="nav-btn" id="navCurrent" type="button" onclick="switchView('current')">当前任务</button>
     <button class="nav-btn" id="navHistory" type="button" onclick="switchView('history')">历史记录</button>
+    <button class="nav-btn" id="navSettings" type="button" onclick="switchView('settings')">模型与连接</button>
   </nav>
 
   <main class="layout">
@@ -852,6 +892,11 @@
           <div><h2>创建一个任务</h2><p>只填写完成任务真正需要的信息。其余设置保持默认即可。</p></div>
         </div>
 
+        <div class="setup-band attention" id="setupBand">
+          <div><strong id="setupTitle">正在确认运行条件</strong><p id="setupDetail" role="status" aria-live="polite">检查 Claude Code、模型连接和本机工具。</p></div>
+          <button class="btn" id="setupAction" type="button" onclick="switchView('settings')">打开模型设置</button>
+        </div>
+
         <div class="task-mode-grid" role="radiogroup" aria-label="任务类型">
           <label class="mode-card"><input type="radio" name="taskMode" value="implement" checked onchange="updateTaskMode()"><strong>修改代码</strong><span>在隔离副本中完成修改，通过后由你决定是否应用。</span></label>
           <label class="mode-card"><input type="radio" name="taskMode" value="review" onchange="updateTaskMode()"><strong>只做代码审查</strong><span>只读分析并给出问题报告，不修改任何文件。</span></label>
@@ -859,9 +904,14 @@
 
         <div class="form-row">
           <label for="repoPath">项目路径</label>
-          <input type="text" id="repoPath" placeholder="D:\project\your-app" autocomplete="off" aria-describedby="repoPathHint repoPathError">
-          <p class="hint" id="repoPathHint">本机可访问的 Git 项目目录。</p>
+          <div class="path-controls">
+            <input type="text" id="repoPath" placeholder="选择项目文件夹" autocomplete="off" aria-describedby="repoPathHint repoPathError projectStatus">
+            <button class="btn" id="chooseProjectBtn" type="button" onclick="chooseProjectFolder()">选择文件夹</button>
+            <button class="btn" id="inspectProjectBtn" type="button" onclick="inspectCurrentProject(true)">检查项目</button>
+          </div>
+          <p class="hint" id="repoPathHint">选择后会自动识别项目根目录和验收方式。</p>
           <p class="field-error" id="repoPathError" hidden></p>
+          <div class="project-status" id="projectStatus" role="status" aria-live="polite">尚未选择项目。</div>
         </div>
         <div class="form-row">
           <label for="goal">任务目标</label>
@@ -869,17 +919,23 @@
           <p class="field-error" id="goalError" hidden></p>
         </div>
         <div class="form-row">
-          <div id="acceptanceLabel" class="form-label">怎样算完成</div>
-          <div class="steps-list" id="stepsList" role="group" aria-labelledby="acceptanceLabel" aria-describedby="stepsError">
-            <div class="step-row">
-              <input type="text" class="step-id" value="test" placeholder="步骤名" aria-label="验收步骤 1 名称">
-              <input type="text" class="step-cmd" value="npm" placeholder="命令" aria-label="验收步骤 1 命令">
-              <input type="text" class="step-args" value='["test"]' placeholder='参数，例如 ["test"]' aria-label="验收步骤 1 参数">
-              <button class="btn btn-danger btn-small step-remove" type="button" onclick="removeStep(this)" title="删除步骤" aria-label="删除验收步骤 1">删</button>
-            </div>
-          </div>
+          <div id="acceptanceLabel" class="form-label">验收方式</div>
+          <div class="acceptance-summary" id="acceptanceSummary">选择项目后自动识别。</div>
           <p class="field-error" id="stepsError" hidden></p>
-          <button class="btn btn-small" style="margin-top:8px" type="button" onclick="addStep()">添加验收步骤</button>
+          <details class="advanced" id="acceptanceAdvanced">
+            <summary>查看或修改识别结果</summary>
+            <div class="advanced-content">
+              <div class="steps-list" id="stepsList" role="group" aria-labelledby="acceptanceLabel" aria-describedby="stepsError">
+                <div class="step-row">
+                  <input type="text" class="step-id" value="test" placeholder="步骤名" aria-label="验收步骤 1 名称">
+                  <input type="text" class="step-cmd" value="" placeholder="命令" aria-label="验收步骤 1 命令">
+                  <input type="text" class="step-args" value="" placeholder='参数，例如 ["test"]' aria-label="验收步骤 1 参数">
+                  <button class="btn btn-danger btn-small step-remove" type="button" onclick="removeStep(this)" title="删除步骤" aria-label="删除验收步骤 1">删</button>
+                </div>
+              </div>
+              <button class="btn btn-small" style="margin-top:8px" type="button" onclick="addStep()">添加验收步骤</button>
+            </div>
+          </details>
         </div>
         <div class="form-row">
           <label for="planningMode">开始前是否先规划</label>
@@ -925,8 +981,72 @@
           </div>
           <div id="configPreviewContent"></div>
         </section>
-        <button class="btn primary-run" id="runBtn" type="button" onclick="startRun()">开始执行任务</button>
+        <button class="btn primary-run" id="runBtn" type="button" onclick="startRun()" disabled>开始执行任务</button>
         <p class="safety-note">先在隔离副本中工作。没有明确通过前，不会写回原项目。</p>
+      </div>
+    </section>
+
+    <section class="view" id="viewSettings" hidden>
+      <div class="panel">
+        <div class="panel-heading">
+          <div><h2>模型与连接</h2><p>完成一次设置和连接测试，之后创建任务即可直接运行。</p></div>
+          <span class="status-badge status-idle" id="providerBadge">未检查</span>
+        </div>
+
+        <section class="settings-section" aria-labelledby="claudeCodeTitle">
+          <h3 id="claudeCodeTitle">Claude Code</h3>
+          <p>Verdikt 通过 Claude Code 执行任务。无论使用 Claude 账号还是第三方模型，本机都需要先安装它。</p>
+          <div class="install-row">
+            <div class="install-copy"><strong id="claudeCodeStatus">正在检查安装状态</strong><span id="claudeCodeDetail">请稍候。</span><div class="install-command" id="installCommandRow" hidden><code id="installCommand"></code><button class="btn btn-small" type="button" onclick="copyInstallCommand()">复制</button></div></div>
+            <a class="btn" id="installDocsLink" href="https://code.claude.com/docs/en/setup" target="_blank" rel="noreferrer">查看官方安装说明</a>
+          </div>
+        </section>
+
+        <section class="settings-section" aria-labelledby="providerTitle">
+          <h3 id="providerTitle">选择连接方式</h3>
+          <p>Claude 账号适合已订阅并登录的用户；兼容服务适合自有接口或第三方模型。</p>
+          <div class="segmented-control" role="radiogroup" aria-label="连接方式">
+            <label class="segmented-option"><input type="radio" name="providerMode" value="claude_login" checked onchange="updateProviderMode()">Claude 账号</label>
+            <label class="segmented-option"><input type="radio" name="providerMode" value="anthropic_compatible" onchange="updateProviderMode()">API / 兼容服务</label>
+          </div>
+
+          <div class="provider-fields">
+            <div class="form-row">
+              <label for="providerModel">模型</label>
+              <input type="text" id="providerModel" value="sonnet" list="modelSuggestions" autocomplete="off" aria-describedby="providerModelHint">
+              <datalist id="modelSuggestions"><option value="sonnet"><option value="opus"><option value="haiku"></datalist>
+              <p class="hint" id="providerModelHint">Claude 账号可用 sonnet、opus 或 haiku；兼容服务请填写它实际提供的模型名称。</p>
+            </div>
+
+            <div id="customProviderFields" hidden>
+              <div class="form-row">
+                <label for="providerBaseUrl">服务地址</label>
+                <input type="url" id="providerBaseUrl" placeholder="https://your-provider.example.com" autocomplete="url">
+              </div>
+              <div class="form-grid">
+                <div class="form-row"><label for="providerAuthType">鉴权方式</label><select id="providerAuthType"><option value="api_key">API Key</option><option value="auth_token">Bearer Token</option></select></div>
+                <div class="form-row"><label for="providerCredential">访问凭据</label><div class="credential-controls"><input type="password" id="providerCredential" placeholder="填写后保存" autocomplete="new-password"><button class="btn" id="toggleCredentialBtn" type="button" onclick="toggleCredentialVisibility()">显示</button></div><p class="hint" id="credentialHint">凭据保存在本机，不会显示在任务记录中。</p></div>
+              </div>
+              <label><input type="checkbox" id="clearProviderCredential" style="width:auto;min-height:0;margin-right:7px">清除之前保存的凭据</label>
+              <div class="provider-note">第三方服务必须兼容 Anthropic API。只有 OpenAI 格式的地址不能直接使用，需要先经过兼容网关转换。</div>
+            </div>
+          </div>
+
+          <div class="secondary-actions">
+            <button class="btn btn-primary" id="saveTestProviderBtn" type="button" onclick="saveProviderSettings(true)">保存并测试连接</button>
+            <button class="btn" id="saveProviderBtn" type="button" onclick="saveProviderSettings(false)">仅保存</button>
+          </div>
+          <div class="connection-result" id="providerStatus" role="status" aria-live="polite">正在读取模型设置。</div>
+        </section>
+
+        <details class="advanced" open>
+          <summary>本机环境</summary>
+          <div class="advanced-content preflight-panel">
+            <div class="preflight-header"><strong>运行条件</strong><button class="btn btn-small" type="button" onclick="loadDoctor()">重新检查</button></div>
+            <div class="hint" id="settingsDoctorSummary" role="status" aria-live="polite">正在检查运行环境。</div>
+            <div class="preflight-list" id="settingsDoctorList"></div>
+          </div>
+        </details>
       </div>
     </section>
 
@@ -1037,6 +1157,12 @@ let currentTaskSource = "user";
 let currentResultResumable = false;
 let dismissedStallAt = null;
 let currentStallDetectedAt = null;
+let providerState = null;
+let claudeCodeState = null;
+let doctorState = null;
+let lastProjectInspection = null;
+let lastInspectedRepoPath = '';
+let acceptanceAutoManaged = true;
 const demoRepoPath = '__VERDIKT_DEMO_REPO_PATH__';
 const verdiktSessionToken = '__VERDIKT_SESSION_TOKEN__';
 const verdiktNativeFetch = window.fetch.bind(window);
@@ -1054,7 +1180,7 @@ window.fetch = (input, init = {}) => {
 const el = (id) => document.getElementById(id);
 
 function switchView(view, remember = true) {
-  const names = ['new', 'current', 'history'];
+  const names = ['new', 'current', 'history', 'settings'];
   const selected = names.includes(view) ? view : 'new';
   for (const name of names) {
     const section = el('view' + name[0].toUpperCase() + name.slice(1));
@@ -1145,7 +1271,10 @@ function setProgressState(mode) {
 }
 
 function setRunningControls(isRunning) {
-  el('runBtn').disabled = isRunning;
+  const requiredFailed = Array.isArray(doctorState?.checks)
+    && doctorState.checks.some((check) => check.required && !check.ok);
+  const providerNotReady = Boolean(el('providerStatus')) && !providerState?.verified;
+  el('runBtn').disabled = isRunning || providerNotReady || Boolean(requiredFailed);
   el('dryRunBtn').disabled = isRunning;
   el('stopBtn').disabled = !isRunning;
 }
@@ -1193,6 +1322,116 @@ function getSteps() {
   return steps;
 }
 
+function setAcceptanceSteps(steps, autoManaged = true) {
+  if (!el('stepsList')) return;
+  const safeSteps = Array.isArray(steps) && steps.length
+    ? steps
+    : [{ id: 'test', command: '', args: [] }];
+  el('stepsList').innerHTML = '';
+  for (const step of safeSteps) {
+    const row = document.createElement('div');
+    row.className = 'step-row';
+    row.innerHTML = `
+      <input type="text" class="step-id" value="${escapeAttr(step.id || 'test')}" placeholder="步骤名">
+      <input type="text" class="step-cmd" value="${escapeAttr(step.command || '')}" placeholder="命令">
+      <input type="text" class="step-args" value="${escapeAttr(JSON.stringify(step.args || []))}" placeholder='参数，例如 ["test"]'>
+      <button class="btn btn-danger btn-small step-remove" type="button" onclick="removeStep(this)" title="删除步骤">删</button>
+    `;
+    el('stepsList').appendChild(row);
+  }
+  acceptanceAutoManaged = autoManaged;
+  updateStepLabels();
+  renderAcceptanceSummary();
+}
+
+function renderAcceptanceSummary() {
+  const summary = el('acceptanceSummary');
+  if (!summary) return;
+  const steps = getSteps();
+  if (!steps.length) {
+    summary.textContent = lastProjectInspection
+      ? '没有自动找到验收方式，请展开后手动填写。'
+      : '选择项目后自动识别。';
+    return;
+  }
+  summary.innerHTML = steps.map((step) => `<span class="acceptance-chip">${escapeHtml(step.id)}</span>`).join('')
+    + `<span>${acceptanceAutoManaged ? '已从项目自动识别' : '已手动调整'}</span>`;
+}
+
+async function chooseProjectFolder() {
+  const button = el('chooseProjectBtn');
+  if (button) button.disabled = true;
+  try {
+    const resp = await fetch('/api/project/select', { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(data.error || '无法打开文件夹选择器');
+    if (data.selectedPath) {
+      el('repoPath').value = data.selectedPath;
+      await inspectCurrentProject(true);
+    }
+  } catch (err) {
+    renderProjectProblem(err.message);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function inspectCurrentProject(applyRecommendations = false) {
+  const repoPath = el('repoPath')?.value.trim() || '';
+  if (!repoPath) {
+    showTaskErrors([{ field: 'repoPath', message: '请先选择项目文件夹。', target: el('repoPath') }]);
+    return null;
+  }
+  const button = el('inspectProjectBtn');
+  if (button) button.disabled = true;
+  if (el('projectStatus')) {
+    el('projectStatus').className = 'project-status loading';
+    el('projectStatus').textContent = '正在检查项目并识别验收方式...';
+  }
+  try {
+    const resp = await fetch('/api/project/inspect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ repoPath }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(data.error || '项目检查失败');
+    lastProjectInspection = data;
+    lastInspectedRepoPath = data.repoPath || repoPath;
+    if (data.repoPath) el('repoPath').value = data.repoPath;
+    renderProjectInspection(data);
+    const recommendations = Array.isArray(data.recommendedSteps) ? data.recommendedSteps : [];
+    if (recommendations.length && (applyRecommendations || acceptanceAutoManaged || getSteps().length === 0)) {
+      setAcceptanceSteps(recommendations, true);
+    } else {
+      renderAcceptanceSummary();
+    }
+    return data;
+  } catch (err) {
+    renderProjectProblem(err.message);
+    return null;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function renderProjectInspection(data) {
+  const status = el('projectStatus');
+  if (!status) return;
+  const issues = Array.isArray(data.issues) ? data.issues : [];
+  status.className = 'project-status ' + (data.ok ? 'ready' : 'blocked');
+  status.innerHTML = `<strong>${escapeHtml(data.summary || '')}</strong>`
+    + `<span>${escapeHtml([data.projectType, data.packageManager, data.git && data.git.branch].filter(Boolean).join(' · '))}</span>`
+    + issues.map((issue) => `<span>${escapeHtml(issue.message)} ${escapeHtml(issue.fix || '')}</span>`).join('');
+}
+
+function renderProjectProblem(message) {
+  const status = el('projectStatus');
+  if (!status) return;
+  status.className = 'project-status blocked';
+  status.textContent = message || '项目检查失败，请重新尝试。';
+}
+
 function addStep() {
   const row = document.createElement('div');
   row.className = 'step-row';
@@ -1203,7 +1442,9 @@ function addStep() {
     <button class="btn btn-danger btn-small step-remove" type="button" onclick="removeStep(this)" title="删除步骤">删</button>
   `;
   el('stepsList').appendChild(row);
+  acceptanceAutoManaged = false;
   updateStepLabels();
+  renderAcceptanceSummary();
   clearTaskFeedback();
   row.querySelector('.step-id')?.focus();
 }
@@ -1212,7 +1453,9 @@ function removeStep(button) {
   const rows = document.querySelectorAll('.step-row');
   if (rows.length > 1) {
     button.closest('.step-row').remove();
+    acceptanceAutoManaged = false;
     updateStepLabels();
+    renderAcceptanceSummary();
     clearTaskFeedback();
   }
 }
@@ -1294,6 +1537,8 @@ function fillDemoTask() {
   el('maxRisk').value = 'low';
   if (el('planningMode')) el('planningMode').value = 'off';
   currentTaskSource = 'demo';
+  lastInspectedRepoPath = demoRepoPath;
+  acceptanceAutoManaged = false;
 
   const rows = document.querySelectorAll('.step-row');
   if (rows.length > 0) {
@@ -1301,6 +1546,7 @@ function fillDemoTask() {
     rows[0].querySelector('.step-cmd').value = 'npx';
     rows[0].querySelector('.step-args').value = '["vitest","run"]';
   }
+  renderAcceptanceSummary();
 
   resetResult();
   setProgressState('idle');
@@ -1317,6 +1563,8 @@ function fillTaskForm(task) {
   el('goal').value = task.goal || '';
   const mode = task.taskMode === 'review' ? 'review' : 'implement';
   currentTaskSource = task.runSource || 'user';
+  lastInspectedRepoPath = task.repoPath || '';
+  acceptanceAutoManaged = false;
   const modeInput = typeof document.querySelector === 'function' ? document.querySelector('input[name="taskMode"][value="' + mode + '"]') : null;
   if (modeInput) modeInput.checked = true;
   updateTaskMode();
@@ -1343,6 +1591,7 @@ function fillTaskForm(task) {
     el('stepsList').appendChild(row);
   }
   updateStepLabels();
+  renderAcceptanceSummary();
 }
 
 function validateTask(task) {
@@ -1491,6 +1740,8 @@ function renderConfigPreview(task) {
     <div class="config-preview-grid">
       <div class="config-preview-item"><span>项目</span><strong>${escapeHtml(task.repoPath)}</strong></div>
       <div class="config-preview-item"><span>任务类型</span><strong>${taskType}</strong></div>
+      <div class="config-preview-item"><span>模型</span><strong>${escapeHtml(providerState?.model || 'sonnet')}</strong></div>
+      <div class="config-preview-item"><span>连接</span><strong>${providerState?.mode === 'anthropic_compatible' ? 'API / 兼容服务' : 'Claude 账号'}</strong></div>
       <div class="config-preview-section"><strong>目标</strong><div>${escapeHtml(task.goal)}</div></div>
       <div class="config-preview-section"><strong>验收步骤（${task.acceptance.steps.length}）</strong><ol>${steps}</ol></div>
       <div class="config-preview-item"><span>开始方式</span><strong>${escapeHtml(planningLabels[task.planning.mode] || task.planning.mode)}</strong></div>
@@ -1532,6 +1783,30 @@ function formatApiError(data, fallback) {
 }
 
 async function startRun() {
+  if (providerState && !providerState.verified) {
+    switchView('settings');
+    setProviderStatus('开始任务前，请先保存设置并完成一次连接测试。', 'error');
+    el('providerStatus')?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  const requestedRepoPath = el('repoPath')?.value.trim() || '';
+  if (providerState && requestedRepoPath) {
+    let inspection = lastProjectInspection;
+    if (requestedRepoPath !== lastInspectedRepoPath) {
+      inspection = await inspectCurrentProject(acceptanceAutoManaged);
+    }
+    if (!inspection || !inspection.ok) {
+      const issueGuidance = Array.isArray(inspection?.issues)
+        ? inspection.issues.map((issue) => [issue.message, issue.fix].filter(Boolean).join(' ')).join(' ')
+        : '';
+      showTaskErrors([{
+        field: 'repoPath',
+        message: [inspection?.summary, issueGuidance].filter(Boolean).join(' ') || '项目检查没有通过，请按提示处理后重试。',
+        target: el('repoPath'),
+      }]);
+      return;
+    }
+  }
   const task = buildTaskSpec();
   const errors = taskValidationErrors(task);
   if (errors.length) {
@@ -2548,36 +2823,225 @@ function renderPatchText(text) {
   }).join('\n');
 }
 
+async function loadProviderSettings() {
+  if (!el('providerStatus')) return;
+  setProviderStatus('正在读取模型设置。', 'loading');
+  try {
+    const resp = await fetch('/api/provider/settings');
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(data.error || '模型设置读取失败');
+    providerState = data.settings || null;
+    claudeCodeState = data.claudeCode || {};
+    renderProviderForm(providerState, claudeCodeState);
+    setProviderStatus(
+      providerState?.verified
+        ? `连接已验证，可以使用模型 ${providerState.model}。`
+        : '设置已读取。请保存并测试一次真实连接。',
+      providerState?.verified ? 'success' : '',
+    );
+  } catch (err) {
+    setProviderStatus('模型设置读取失败：' + err.message, 'error');
+  }
+  renderSetupOverview();
+}
+
+function renderProviderForm(settings, claudeCode) {
+  if (settings) {
+    const modeInput = document.querySelector(`input[name="providerMode"][value="${settings.mode}"]`);
+    if (modeInput) modeInput.checked = true;
+    if (el('providerModel')) el('providerModel').value = settings.model || 'sonnet';
+    if (el('providerBaseUrl')) el('providerBaseUrl').value = settings.baseUrl || '';
+    if (el('providerAuthType')) el('providerAuthType').value = settings.authType || 'api_key';
+    if (el('providerCredential')) el('providerCredential').value = '';
+    if (el('clearProviderCredential')) el('clearProviderCredential').checked = false;
+    if (el('credentialHint')) el('credentialHint').textContent = settings.hasCredential
+      ? '已有凭据保存在本机。留空会继续使用它。'
+      : '凭据保存在本机，不会显示在任务记录中。';
+  }
+  updateProviderMode();
+
+  const installed = claudeCode && claudeCode.installed;
+  if (el('claudeCodeStatus')) el('claudeCodeStatus').textContent = installed ? 'Claude Code 已安装' : '需要安装 Claude Code';
+  if (el('claudeCodeDetail')) el('claudeCodeDetail').textContent = installed
+    ? (claudeCode.version || '已找到可执行程序')
+    : '安装完成后重新检查，即可继续配置模型。';
+  if (el('installCommand')) el('installCommand').textContent = claudeCode.command || '';
+  if (el('installCommandRow')) el('installCommandRow').hidden = Boolean(installed || !claudeCode.command);
+  if (el('installDocsLink') && claudeCode.docsUrl) el('installDocsLink').href = claudeCode.docsUrl;
+  if (el('providerBadge')) {
+    el('providerBadge').className = 'status-badge ' + (settings?.verified ? 'status-passed' : 'status-idle');
+    el('providerBadge').textContent = settings?.verified ? '连接正常' : '等待测试';
+  }
+}
+
+function updateProviderMode() {
+  const mode = document.querySelector('input[name="providerMode"]:checked')?.value || 'claude_login';
+  if (el('customProviderFields')) el('customProviderFields').hidden = mode !== 'anthropic_compatible';
+  if (el('providerModelHint')) el('providerModelHint').textContent = mode === 'anthropic_compatible'
+    ? '填写第三方服务实际提供的模型名称，例如服务商控制台中的模型 ID。'
+    : '可用 sonnet、opus 或 haiku，也可以填写完整 Claude 模型名称。';
+}
+
+function providerFormData() {
+  return {
+    mode: document.querySelector('input[name="providerMode"]:checked')?.value || 'claude_login',
+    model: el('providerModel')?.value.trim() || '',
+    baseUrl: el('providerBaseUrl')?.value.trim() || '',
+    authType: el('providerAuthType')?.value || 'api_key',
+    credential: el('providerCredential')?.value || '',
+    clearCredential: Boolean(el('clearProviderCredential')?.checked),
+  };
+}
+
+async function saveProviderSettings(testAfterSave) {
+  const saveButton = el('saveProviderBtn');
+  const testButton = el('saveTestProviderBtn');
+  if (saveButton) saveButton.disabled = true;
+  if (testButton) testButton.disabled = true;
+  setProviderStatus('正在保存模型设置...', 'loading');
+  try {
+    const resp = await fetch('/api/provider/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(providerFormData()),
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(data.error || '保存失败');
+    providerState = data.settings;
+    renderProviderForm(providerState, claudeCodeState || {});
+    setProviderStatus('设置已保存。', 'success');
+    if (testAfterSave) await testProviderConnection();
+    else await loadDoctor();
+  } catch (err) {
+    setProviderStatus('保存失败：' + err.message, 'error');
+  } finally {
+    if (saveButton) saveButton.disabled = false;
+    if (testButton) testButton.disabled = false;
+    renderSetupOverview();
+  }
+}
+
+async function testProviderConnection() {
+  const testButton = el('saveTestProviderBtn');
+  if (testButton) testButton.disabled = true;
+  setProviderStatus('正在发出一个很小的真实请求，确认账号、额度、地址和模型...', 'loading');
+  try {
+    const resp = await fetch('/api/provider/test', { method: 'POST' });
+    const data = await resp.json();
+    if (data.settings) providerState = data.settings;
+    const result = data.result || {};
+    if (!resp.ok || !result.ok) throw new Error(result.message || data.error || '连接测试失败');
+    setProviderStatus(result.message || '连接成功。', 'success');
+    if (el('providerBadge')) {
+      el('providerBadge').className = 'status-badge status-passed';
+      el('providerBadge').textContent = '连接正常';
+    }
+    await loadDoctor();
+  } catch (err) {
+    if (providerState) providerState.verified = false;
+    setProviderStatus(err.message, 'error');
+    if (el('providerBadge')) {
+      el('providerBadge').className = 'status-badge status-failed';
+      el('providerBadge').textContent = '连接失败';
+    }
+  } finally {
+    if (testButton) testButton.disabled = false;
+    renderSetupOverview();
+  }
+}
+
+function setProviderStatus(message, state) {
+  const status = el('providerStatus');
+  if (!status) return;
+  status.className = 'connection-result' + (state ? ' ' + state : '');
+  status.textContent = message;
+}
+
+function toggleCredentialVisibility() {
+  const input = el('providerCredential');
+  const button = el('toggleCredentialBtn');
+  if (!input || !button) return;
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  button.textContent = show ? '隐藏' : '显示';
+}
+
+async function copyInstallCommand() {
+  const command = el('installCommand')?.textContent || '';
+  if (!command) return;
+  try {
+    await navigator.clipboard.writeText(command);
+    setProviderStatus('安装命令已复制。', 'success');
+  } catch {
+    setProviderStatus('无法自动复制，请选中安装命令后复制。', 'error');
+  }
+}
+
+function renderSetupOverview() {
+  const band = el('setupBand');
+  if (!band) return;
+  const requiredFailures = Array.isArray(doctorState?.checks)
+    ? doctorState.checks.filter((check) => check.required && !check.ok)
+    : [];
+  if (requiredFailures.length) {
+    const first = requiredFailures[0];
+    band.className = 'setup-band blocked';
+    el('setupTitle').textContent = '还不能开始任务';
+    el('setupDetail').textContent = [first.name + '未通过。', first.fix].filter(Boolean).join(' ');
+    el('setupAction').textContent = '去处理';
+  } else if (!providerState || !providerState.verified) {
+    band.className = 'setup-band attention';
+    el('setupTitle').textContent = providerState ? '还差一次连接测试' : '正在确认运行条件';
+    el('setupDetail').textContent = providerState
+      ? '先确认账号、额度、服务地址和模型都能正常使用。'
+      : '正在读取模型设置和本机环境。';
+    el('setupAction').textContent = '打开模型设置';
+  } else {
+    band.className = 'setup-band ready';
+    el('setupTitle').textContent = '模型连接已准备好';
+    el('setupDetail').textContent = `当前模型：${providerState.model}。选择项目并填写任务即可运行。`;
+    el('setupAction').textContent = '查看设置';
+  }
+  setRunningControls(false);
+}
+
 async function loadDoctor() {
   if (!el('doctorSummary')) return;
   el('doctorSummary').textContent = '正在检查本机环境...';
+  if (el('settingsDoctorSummary')) el('settingsDoctorSummary').textContent = '正在检查本机环境...';
   try {
     const resp = await fetch('/api/doctor');
     const data = await resp.json();
     if (!resp.ok || data.error) throw new Error(formatApiError(data, '环境检查失败'));
+    doctorState = data;
     const checks = Array.isArray(data.checks) ? data.checks : [];
-    const providerPending = checks.some((check) => check.verification === 'not_checked');
-    el('doctorSummary').textContent = data.ok
-      ? providerPending
-        ? '\u5fc5\u8981\u7684\u672c\u673a\u5de5\u5177\u5df2\u901a\u8fc7\uff1bClaude \u4f59\u989d\u548c\u670d\u52a1\u53ef\u7528\u6027\u5c06\u5728\u9996\u6b21\u8bf7\u6c42\u65f6\u786e\u8ba4\u3002'
-        : '\u5fc5\u8981\u73af\u5883\u5df2\u901a\u8fc7\uff0c\u53ef\u4ee5\u63d0\u4ea4\u4efb\u52a1\u3002'
-      : '\u6709\u5fc5\u8981\u73af\u5883\u672a\u901a\u8fc7\uff0c\u5148\u4fee\u597d\u518d\u8dd1\u4efb\u52a1\u66f4\u7a33\u3002';
-    el('doctorList').innerHTML = checks.map((check) => {
+    const summary = data.ok
+      ? providerState?.verified
+        ? '本机环境和模型连接均已通过。'
+        : '本机工具已通过；请在模型设置中完成一次真实连接测试。'
+      : '还有必要条件未通过，请按下面的提示处理。';
+    el('doctorSummary').textContent = summary;
+    if (el('settingsDoctorSummary')) el('settingsDoctorSummary').textContent = summary;
+    const listHtml = checks.map((check) => {
       const state = check.verification === 'not_checked'
-        ? '\u5f85\u9996\u6b21\u8bf7\u6c42\u786e\u8ba4'
+        ? '等待连接测试'
         : check.ok
-          ? '\u901a\u8fc7'
-          : '\u672a\u901a\u8fc7';
+          ? '通过'
+          : '未通过';
       return `
         <div class="preflight-item">
-          <span>${escapeHtml(check.name)}${check.required ? '' : '\uff08\u53ef\u9009\uff09'}</span>
-          <span>${state} \u00b7 ${escapeHtml(check.detail || '')}</span>
+          <span>${escapeHtml(check.name)}${check.required ? '' : '（可选）'}</span>
+          <span>${state} · ${escapeHtml(check.detail || '')}${check.fix ? ' · ' + escapeHtml(check.fix) : ''}</span>
         </div>
       `;
     }).join('');
+    el('doctorList').innerHTML = listHtml;
+    if (el('settingsDoctorList')) el('settingsDoctorList').innerHTML = listHtml;
   } catch (err) {
-    el('doctorSummary').textContent = '\u73af\u5883\u68c0\u67e5\u5931\u8d25: ' + err.message;
+    el('doctorSummary').textContent = '环境检查失败：' + err.message;
+    if (el('settingsDoctorSummary')) el('settingsDoctorSummary').textContent = '环境检查失败：' + err.message;
   }
+  renderSetupOverview();
 }
 
 async function refreshStats() {
@@ -2740,12 +3204,29 @@ function escapeAttr(value) {
 
 if (el('workbenchList')) {
   updateStepLabels();
+  renderAcceptanceSummary();
   const taskForm = el('viewNew');
   taskForm?.addEventListener('input', clearTaskFeedback);
   taskForm?.addEventListener('change', clearTaskFeedback);
+  el('repoPath')?.addEventListener?.('input', () => {
+    lastProjectInspection = null;
+    lastInspectedRepoPath = '';
+    if (el('projectStatus')) {
+      el('projectStatus').className = 'project-status';
+      el('projectStatus').textContent = '路径已变化，开始前会重新检查。';
+    }
+  });
+  el('repoPath')?.addEventListener?.('blur', () => {
+    const path = el('repoPath')?.value.trim() || '';
+    if (path && path !== lastInspectedRepoPath) inspectCurrentProject(true);
+  });
+  el('stepsList')?.addEventListener?.('input', () => {
+    acceptanceAutoManaged = false;
+    renderAcceptanceSummary();
+  });
   updateTaskMode();
+  loadProviderSettings().then(() => loadDoctor());
   showCurrentContent();
-  loadDoctor();
   refreshWorkbench();
   refreshStats();
   workbenchTimer = window.setInterval(refreshWorkbench, 5000);

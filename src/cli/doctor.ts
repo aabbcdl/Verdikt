@@ -4,14 +4,20 @@
 
 import type { ExecException } from "node:child_process";
 import { resolve } from "node:path";
+import { getConfig } from "../config.js";
+import { claudeInstallGuidance, inspectClaudeLogin } from "../provider/probe.js";
+import { providerSettingsFromConfig } from "../provider/settings.js";
 import { parseArgs } from "./parseArgs.js";
 
 export interface DoctorCheck {
+  code?: string;
   name: string;
   ok: boolean;
   detail: string;
   required: boolean;
   verification?: "confirmed" | "not_checked";
+  fix?: string;
+  action?: { label: string; href?: string; command?: string };
 }
 
 export interface DoctorReport {
@@ -26,78 +32,112 @@ export async function handleDoctor(args: string[] = []): Promise<void> {
   const report = await runDoctorChecks();
 
   for (const c of report.checks) {
-    const icon = c.verification === "not_checked" ? "?" : c.ok ? "?" : "?";
+    const icon = c.verification === "not_checked" ? "[pending]" : c.ok ? "[ok]" : "[failed]";
     const required = c.required ? "" : " (optional)";
     console.log(`  ${c.name.padEnd(24)} ${c.detail} ${icon}${required}`);
   }
 
   console.log(
-    `\n${report.ok ? "? All required local checks passed. Provider balance and service availability will be confirmed on the first request." : "??  Some required checks failed. Fix the issues above before running Verdikt."}`,
+    `\n${report.ok ? "All required local checks passed. Use the connection test before the first task." : "Some required checks failed. Fix the issues above before running Verdikt."}`,
   );
 }
 
 export async function runDoctorChecks(): Promise<DoctorReport> {
   const { exec } = await import("node:child_process");
-  const checks: DoctorCheck[] = [];
+  const install = claudeInstallGuidance();
 
-  // Helper to run a command and check result
-  async function check(name: string, cmd: string, required = true): Promise<void> {
-    return new Promise<void>((resolveCheck) => {
+  async function check(
+    code: string,
+    name: string,
+    cmd: string,
+    required = true,
+  ): Promise<DoctorCheck> {
+    return new Promise<DoctorCheck>((resolveCheck) => {
       try {
-        exec(cmd, { encoding: "utf-8" }, (err: ExecException | null, stdout: string) => {
-          if (err) {
-            checks.push({ name, ok: false, detail: "not found", required });
-          } else {
-            checks.push({ name, ok: true, detail: stdout.trim().split("\n")[0], required });
-          }
-          resolveCheck();
-        });
+        exec(
+          cmd,
+          { encoding: "utf-8", timeout: 8_000, windowsHide: true },
+          (err: ExecException | null, stdout: string) => {
+            if (err) {
+              resolveCheck({ code, name, ok: false, detail: "未找到或无法运行", required });
+            } else {
+              resolveCheck({
+                code,
+                name,
+                ok: true,
+                detail: stdout.trim().split(/\r?\n/)[0],
+                required,
+              });
+            }
+          },
+        );
       } catch {
-        checks.push({ name, ok: false, detail: "not found", required });
-        resolveCheck();
+        resolveCheck({ code, name, ok: false, detail: "未找到或无法运行", required });
       }
     });
   }
 
-  // Core tools
-  await check("Node.js", "node --version");
-  await check("Claude CLI", "claude --version");
-  await check("Git", "git --version");
-  await check("pnpm", "pnpm --version");
+  const [node, claude, git, pnpm, worktree] = await Promise.all([
+    check("node", "Node.js", "node --version"),
+    check("claude", "Claude Code", "claude --version"),
+    check("git", "Git", "git --version"),
+    check("pnpm", "pnpm", "pnpm --version", false),
+    check("git_worktree", "Git worktree", "git worktree list"),
+  ]);
+  if (!node.ok) node.fix = "安装 Node.js 20 或更新版本。";
+  if (!git.ok) git.fix = "安装 Git 后重新检查。";
+  if (!claude.ok) {
+    claude.fix = "安装 Claude Code 后重新检查。";
+    claude.action = { label: "查看安装说明", href: install.docsUrl, command: install.command };
+  }
+  const checks: DoctorCheck[] = [node, claude, git, pnpm, worktree];
 
-  // Git worktree support
-  await check("Git worktree", "git worktree list");
-
-  // API configuration
-  const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
-  const baseUrl = process.env.ANTHROPIC_BASE_URL || "(default Anthropic)";
-  const model = process.env.VERDIKT_MODEL || "sonnet";
-
-  checks.push({
-    name: "ANTHROPIC_API_KEY",
-    ok: hasApiKey,
-    detail: hasApiKey ? "set" : "not set (will use OAuth/keychain)",
-    required: false,
-  });
-  checks.push({ name: "ANTHROPIC_BASE_URL", ok: true, detail: baseUrl, required: false });
-  checks.push({ name: "Model", ok: true, detail: model, required: false });
-  checks.push({
-    name: "Claude request readiness",
-    ok: true,
-    detail: "balance and service availability are checked on the first request",
-    required: false,
-    verification: "not_checked",
-  });
-
-  // State directory
-  const { getConfig } = await import("../config.js");
   try {
     const config = getConfig();
-    checks.push({ name: "Configuration", ok: true, detail: "valid", required: true });
-    checks.push({ name: "State dir", ok: true, detail: resolve(config.stateDir), required: true });
+    const provider = providerSettingsFromConfig(config);
+    checks.push({
+      code: "provider",
+      name: "模型服务",
+      ok: true,
+      detail:
+        provider.mode === "claude_login"
+          ? `Claude 账号 · ${provider.model}`
+          : `兼容服务 · ${provider.model} · ${provider.baseUrl}`,
+      required: true,
+    });
+    if (provider.mode === "claude_login") {
+      const login = claude.ok
+        ? await inspectClaudeLogin(provider)
+        : { loggedIn: false, detail: "请先安装 Claude Code" };
+      checks.push({
+        code: "claude_login",
+        name: "Claude 登录",
+        ok: login.loggedIn,
+        detail: login.detail,
+        required: true,
+        fix: login.loggedIn ? undefined : "在终端运行 claude，并按提示完成登录。",
+      });
+    }
+    checks.push({
+      code: "provider_request",
+      name: "Claude request readiness",
+      ok: true,
+      detail: "请在模型设置中运行一次真实连接测试",
+      required: false,
+      verification: "not_checked",
+    });
+    checks.push({ code: "configuration", name: "配置", ok: true, detail: "有效", required: true });
+    checks.push({
+      code: "state_dir",
+      name: "数据目录",
+      ok: true,
+      detail: resolve(config.stateDir),
+      required: true,
+    });
   } catch (error) {
     checks.push({
-      name: "Configuration",
+      code: "configuration",
+      name: "配置",
       ok: false,
       detail: error instanceof Error ? error.message : String(error),
       required: true,

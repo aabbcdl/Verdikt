@@ -11,6 +11,22 @@ import { readFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join, resolve } from "node:path";
 import { readActionApprovalState } from "../approval/actionStore.js";
+import { getConfig, setConfig } from "../config.js";
+import {
+  claudeInstallGuidance,
+  inspectClaudeInstallation,
+  probeProvider,
+} from "../provider/probe.js";
+import {
+  applyProviderSettingsToConfig,
+  loadProviderSettings,
+  markProviderVerified,
+  providerSettingsFromConfig,
+  providerSettingsFromInput,
+  saveProviderSettings,
+  toPublicProviderSettings,
+} from "../provider/settings.js";
+import type { ProviderProbeResult, ProviderSettings } from "../provider/types.js";
 import { appendRunEvent, readRunEvents } from "../trace/events.js";
 import type { ApprovalRequest, RunAgentPhase, RunPhaseUpdate, TaskSpec } from "../types.js";
 import { coerceUsageSummary, formatCost } from "../usage.js";
@@ -18,6 +34,7 @@ import { validateTaskSpec } from "../validation.js";
 import { readVerdictResult } from "../verdict/store.js";
 import { forkRunFromIteration, rewindRunToIteration } from "./checkpointActions.js";
 import { runDoctorChecks } from "./doctor.js";
+import { type FolderPickerResult, pickProjectFolder } from "./folderPicker.js";
 import {
   type LocalServerHandle,
   dataContentType,
@@ -38,6 +55,7 @@ import {
   savePersistedRunQueue,
   upsertPersistedRun,
 } from "./persistentQueue.js";
+import { type ProjectInspection, inspectProject } from "./projectSetup.js";
 import { checkRepoPreflight } from "./repoPreflight.js";
 import { type RunSummaryForAdvice, buildRunAdvice } from "./runAdvice.js";
 import {
@@ -174,6 +192,9 @@ export async function startAppServer(options: {
   browserAutoOpen?: boolean;
   terminalRunTtlMs?: number;
   doctorChecks?: typeof runDoctorChecks;
+  providerProbe?: (settings: ProviderSettings) => Promise<ProviderProbeResult>;
+  folderPicker?: () => Promise<FolderPickerResult>;
+  projectInspector?: (repoPath: string) => Promise<ProjectInspection>;
 }): Promise<AppServerHandle> {
   const host = options.host ?? "127.0.0.1";
   const terminalRunTtlMs = options.terminalRunTtlMs ?? DEFAULT_TERMINAL_RUN_TTL_MS;
@@ -182,8 +203,15 @@ export async function startAppServer(options: {
   let trustedAuthority = formatAuthority(host, options.port);
   const { readFile: readFileFs } = await import("node:fs/promises");
 
-  const config = (await import("../config.js")).getConfig();
-  const stateDir = resolve(config.stateDir);
+  const initialConfig = getConfig();
+  const stateDir = resolve(initialConfig.stateDir);
+  const loadedProvider = await loadProviderSettings(
+    stateDir,
+    providerSettingsFromConfig(initialConfig),
+  );
+  let providerSettings = loadedProvider.settings;
+  let providerSource = loadedProvider.source;
+  setConfig(applyProviderSettingsToConfig(providerSettings));
 
   // Track running tasks
   const runningTasks = new Map<string, LiveRunTask>();
@@ -282,6 +310,10 @@ export async function startAppServer(options: {
             "usage-completeness",
             "run-search",
             "workspace-prewarm",
+            "provider-settings",
+            "provider-connection-test",
+            "project-inspection",
+            "folder-picker",
           ],
         }),
       );
@@ -452,8 +484,93 @@ export async function startAppServer(options: {
     // API: Environment preflight for first-run onboarding
     if (url.pathname === "/api/doctor" && req.method === "GET") {
       const report = await (options.doctorChecks ?? runDoctorChecks)();
+      const providerRequest = report.checks.find((check) => check.code === "provider_request");
+      if (providerRequest && toPublicProviderSettings(providerSettings, providerSource).verified) {
+        providerRequest.ok = true;
+        providerRequest.verification = "confirmed";
+        providerRequest.detail = `真实连接测试已通过 · ${providerSettings.model}`;
+      }
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify(report));
+      return;
+    }
+
+    // API: Model provider setup. Credentials are accepted on write but never returned.
+    if (url.pathname === "/api/provider/settings" && req.method === "GET") {
+      const [installation] = await Promise.all([inspectClaudeInstallation()]);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          settings: toPublicProviderSettings(providerSettings, providerSource),
+          claudeCode: { ...installation, ...claudeInstallGuidance() },
+        }),
+      );
+      return;
+    }
+
+    if (url.pathname === "/api/provider/settings" && req.method === "POST") {
+      if (hasActiveProviderConsumer(runningTasks, queueState)) {
+        res.writeHead(409, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "有任务正在运行或排队，请等它结束后再修改模型设置。" }));
+        return;
+      }
+      const body = await readJsonBody(req, res);
+      if (body === null) return;
+      try {
+        providerSettings = providerSettingsFromInput(body, providerSettings);
+        providerSettings = await saveProviderSettings(stateDir, providerSettings);
+        providerSource = "saved";
+        setConfig(applyProviderSettingsToConfig(providerSettings));
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({ settings: toPublicProviderSettings(providerSettings, providerSource) }),
+        );
+      } catch (error) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
+      }
+      return;
+    }
+
+    if (url.pathname === "/api/provider/test" && req.method === "POST") {
+      if (hasActiveProviderConsumer(runningTasks, queueState)) {
+        res.writeHead(409, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "有任务正在运行或排队，请等它结束后再测试连接。" }));
+        return;
+      }
+      const result = await (options.providerProbe ?? probeProvider)(providerSettings);
+      providerSettings = markProviderVerified(providerSettings, result.ok);
+      providerSettings = await saveProviderSettings(stateDir, providerSettings);
+      providerSource = "saved";
+      setConfig(applyProviderSettingsToConfig(providerSettings));
+      res.writeHead(result.ok ? 200 : 422, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          result,
+          settings: toPublicProviderSettings(providerSettings, providerSource),
+        }),
+      );
+      return;
+    }
+
+    if (url.pathname === "/api/project/select" && req.method === "POST") {
+      const result = await (options.folderPicker ?? pickProjectFolder)();
+      res.writeHead(result.error ? 500 : 200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(result));
+      return;
+    }
+
+    if (url.pathname === "/api/project/inspect" && req.method === "POST") {
+      const body = await readJsonBody(req, res);
+      if (body === null) return;
+      if (typeof body.repoPath !== "string" || !body.repoPath.trim()) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "请先选择项目文件夹。" }));
+        return;
+      }
+      const result = await (options.projectInspector ?? inspectProject)(body.repoPath);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(result));
       return;
     }
 
@@ -2441,6 +2558,16 @@ function updateRunTaskApplyStatus(
       applyStatus,
     },
   });
+}
+
+function hasActiveProviderConsumer(
+  runningTasks: Map<string, LiveRunTask>,
+  queueState: RunQueueState,
+): boolean {
+  if (queueState.activeRunId || queueState.queue.length > 0) return true;
+  return [...runningTasks.values()].some((task) =>
+    ["queued", "running", "waiting_approval", "cancelling"].includes(task.status),
+  );
 }
 
 function injectAppDefaults(html: string, sessionToken: string): string {

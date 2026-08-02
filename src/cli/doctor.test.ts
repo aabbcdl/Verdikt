@@ -13,7 +13,7 @@ describe("doctor checks", () => {
 
     expect(report.ok).toBe(false);
     expect(report.checks.find((check) => check.name === "Node.js")).toEqual(
-      expect.objectContaining({ ok: false, detail: "not found" }),
+      expect.objectContaining({ ok: false, detail: "未找到或无法运行" }),
     );
     expect(report.checks.find((check) => check.name === "Claude request readiness")).toEqual(
       expect.objectContaining({

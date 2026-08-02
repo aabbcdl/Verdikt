@@ -19,6 +19,13 @@ describe("2026-07-26 UX fixes", () => {
     expect(html).toContain('aria-label="查看 ${itemLabel}"');
     expect(html).toContain(".lane-grid {");
     expect(html).toContain("progress-sweep");
+    expect(html).toContain('id="navSettings"');
+    expect(html).toContain('id="providerBaseUrl"');
+    expect(html).toContain('id="saveTestProviderBtn"');
+    expect(html).toContain('id="chooseProjectBtn"');
+    expect(html).toContain("第三方服务必须兼容 Anthropic API");
+    expect(html).toContain("loadProviderSettings().then(() => loadDoctor());");
+    expect(html).toContain("let inspection = lastProjectInspection;");
     // Degraded "?" separators must stay gone.
     expect(html).not.toContain(" ? \\u6392\\u961f ");
     expect(html).not.toContain("agent ? \\u7b2c");

@@ -2,8 +2,14 @@
  * Configuration loader for Verdikt.
  */
 
+import type { ProviderAuthType, ProviderMode } from "./provider/types.js";
+
 export interface VerdiktConfig {
   model: string;
+  providerMode: ProviderMode;
+  providerBaseUrl?: string;
+  providerAuthType: ProviderAuthType;
+  providerCredential?: string;
   defaultMaxIterations: number;
   defaultTimeoutMs: number;
   defaultSoftTimeoutMs: number;
@@ -22,7 +28,7 @@ export function getConfig(): VerdiktConfig {
 }
 
 export function setConfig(overrides: Partial<VerdiktConfig>): VerdiktConfig {
-  cached = { ...loadConfigFromEnv(), ...overrides };
+  cached = { ...(cached ?? loadConfigFromEnv()), ...overrides };
   return { ...cached };
 }
 
@@ -46,10 +52,20 @@ function loadConfigFromEnv(): VerdiktConfig {
     throw new Error("VERDIKT_ABSOLUTE_TIMEOUT_MS must be at least VERDIKT_TIMEOUT_MS");
   }
   const model = process.env.VERDIKT_MODEL?.trim() || "sonnet";
+  const providerBaseUrl = process.env.ANTHROPIC_BASE_URL?.trim() || undefined;
+  const authToken = process.env.ANTHROPIC_AUTH_TOKEN?.trim() || undefined;
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim() || undefined;
+  const providerCredential = authToken ?? apiKey;
+  const providerMode: ProviderMode =
+    providerBaseUrl || providerCredential ? "anthropic_compatible" : "claude_login";
   const stateDir = process.env.VERDIKT_STATE_DIR?.trim() || ".verdikt";
   const verbose = parseEnvBoolean("VERDIKT_VERBOSE", false);
   return {
     model,
+    providerMode,
+    providerBaseUrl,
+    providerAuthType: authToken ? "auth_token" : "api_key",
+    providerCredential,
     defaultMaxIterations: parseEnvInteger("VERDIKT_MAX_ITERATIONS", 5, 1, 100),
     defaultTimeoutMs,
     defaultSoftTimeoutMs,
