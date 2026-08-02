@@ -120,7 +120,7 @@ export async function runDoctorChecks(): Promise<DoctorReport> {
     }
     checks.push({
       code: "provider_request",
-      name: "Claude request readiness",
+      name: "模型连接测试",
       ok: true,
       detail: "请在模型设置中运行一次真实连接测试",
       required: false,

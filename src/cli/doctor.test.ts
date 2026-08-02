@@ -15,7 +15,7 @@ describe("doctor checks", () => {
     expect(report.checks.find((check) => check.name === "Node.js")).toEqual(
       expect.objectContaining({ ok: false, detail: "未找到或无法运行" }),
     );
-    expect(report.checks.find((check) => check.name === "Claude request readiness")).toEqual(
+    expect(report.checks.find((check) => check.name === "模型连接测试")).toEqual(
       expect.objectContaining({
         ok: true,
         required: false,

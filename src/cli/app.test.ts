@@ -730,7 +730,7 @@ describe("App server", () => {
           checks: [
             { name: "Node.js", ok: true, detail: "v24", required: true, verification: "confirmed" },
             {
-              name: "Claude request readiness",
+              name: "模型连接测试",
               ok: true,
               detail: "first request",
               required: false,
