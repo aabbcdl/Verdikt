@@ -335,6 +335,7 @@ export interface IntegritySnapshot {
   issues: Array<{
     rule: string;
     detail: string;
+    file?: string;
     severity?: "critical" | "warning";
   }>;
 }

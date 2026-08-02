@@ -777,6 +777,7 @@ describe("App server", () => {
 
     expect(viewResponse.status).toBe(200);
     expect(viewHtml).toContain(`'/data/${runId}'`);
+    expect(viewHtml).toContain(`'/api/verdict/${runId}'`);
     expect(summaryResponse.status).toBe(200);
     expect(summary.runId).toBe(runId);
   });
@@ -815,7 +816,16 @@ describe("App server", () => {
           outOfScopeFiles: [],
           filesChanged: 0,
         },
-        criteria: [],
+        criteria: [
+          {
+            id: "test",
+            name: "Tests",
+            required: true,
+            status: "pass",
+            summary: "exit 0",
+            evidenceIds: ["command:test"],
+          },
+        ],
         integrity: {
           status: "pass",
           testsModified: false,
@@ -825,7 +835,16 @@ describe("App server", () => {
           warningCount: 0,
           findings: [],
         },
-        evidence: [],
+        evidence: [
+          {
+            id: "command:test",
+            kind: "test",
+            source: "verified_execution",
+            assurance: "verified",
+            title: "Tests",
+            summary: "exit 0",
+          },
+        ],
         findings: [],
         provenance: {},
         createdAt: "2026-07-28T12:00:00.000Z",
@@ -841,6 +860,14 @@ describe("App server", () => {
 
     expect(response.status).toBe(200);
     expect(body).toMatchObject({ version: 1, status: "pass" });
+
+    await writeFile(
+      join(runDir, "verdict.json"),
+      JSON.stringify({ version: 1, status: "pass", run: { runId } }),
+      "utf-8",
+    );
+    const invalid = await fetch(`${app.url}/api/verdict/${runId}`);
+    expect(invalid.status).toBe(422);
 
     await writeFile(
       join(runDir, "verdict.json"),

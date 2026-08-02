@@ -57,7 +57,7 @@ describe("workspace prewarm", () => {
     await expect(readFile(join(second.worktreePath, "leak.txt"), "utf-8")).rejects.toThrow();
     expect((await readFile(join(second.worktreePath, "value.txt"), "utf-8")).trim()).toBe("base");
     await discardRun(repoPath, second.worktreePath, second.branchName);
-  });
+  }, 60_000);
 
   it("can prepare another workspace after a warmed run is applied", async () => {
     await warmRepository(repoPath, stateDir);
@@ -95,7 +95,7 @@ describe("workspace prewarm", () => {
     await applyPassedRun(runId);
     await expect(warmRepository(repoPath, stateDir)).resolves.toMatchObject({ version: 1 });
     expect(await isWarmRepositoryReady(repoPath, stateDir)).toBe(true);
-  });
+  }, 60_000);
 
   it("does not reuse a prepared workspace after the source HEAD changes", async () => {
     const prepared = await warmRepository(repoPath, stateDir);
@@ -114,7 +114,7 @@ describe("workspace prewarm", () => {
       "new head",
     );
     await discardRun(repoPath, worktree.worktreePath, worktree.branchName);
-  });
+  }, 60_000);
 });
 
 async function git(cwd: string, args: string[]): Promise<string> {

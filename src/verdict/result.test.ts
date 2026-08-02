@@ -291,6 +291,16 @@ describe("buildVerdictResult", () => {
       acceptanceWeakened: true,
       criticalCount: 1,
     });
+    expect(verdict.integrity.findings[0]?.evidenceIds).toEqual(["integrity-evidence:1"]);
+    expect(verdict.evidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "integrity-evidence:1",
+          source: "verified_execution",
+          kind: "file",
+        }),
+      ]),
+    );
   });
 
   it("requires human review when objective checks passed without an integrity result", () => {

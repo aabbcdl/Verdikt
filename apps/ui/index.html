@@ -542,6 +542,7 @@
 async function loadRun() {
   const params = new URLSearchParams(window.location.search);
   let basePath = params.get('dir') || '';
+  let verdictPath = params.get('verdict') || '';
 
   if (!basePath) {
     document.getElementById('run-id').textContent = '请在地址中提供 ?dir=<运行目录>';
@@ -552,10 +553,12 @@ async function loadRun() {
   basePath = basePath.replace(/\\/g, '/');
 
   let verdictRes = null;
-  try {
-    verdictRes = await fetch(`${basePath}/verdict.json`);
-  } catch {
-    verdictRes = null;
+  if (verdictPath) {
+    try {
+      verdictRes = await fetch(verdictPath);
+    } catch {
+      verdictRes = null;
+    }
   }
   if (verdictRes && verdictRes.ok) {
     try {
@@ -574,6 +577,13 @@ async function loadRun() {
   if (verdictRes && verdictRes.status !== 404) {
     renderVerdictError(`判定结果读取失败（HTTP ${verdictRes.status}）。`);
     return;
+  }
+  if (verdictRes && verdictRes.status === 404) {
+    const details = await verdictRes.json().catch(() => ({}));
+    if (!details || details.legacy !== true) {
+      renderVerdictError('Invalid or unavailable verdict result.');
+      return;
+    }
   }
 
   try {
@@ -809,7 +819,7 @@ function returnToWorkbench() {
 }
 
 function isVerdictV1(value) {
-  return Boolean(
+  const structural = Boolean(
     value &&
     value.version === 1 &&
     ['pass', 'fail', 'needs_review', 'incomplete'].includes(value.status) &&
@@ -817,6 +827,21 @@ function isVerdictV1(value) {
     value.summary &&
     Array.isArray(value.criteria) &&
     Array.isArray(value.evidence),
+  );
+  if (!structural) return false;
+  if (value.status !== 'pass') return true;
+  const criteria = Array.isArray(value.criteria) ? value.criteria : [];
+  const required = criteria.filter((criterion) => criterion && criterion.required === true);
+  const evidenceIds = new Set((value.evidence || []).map((evidence) => evidence && evidence.id));
+  return Boolean(
+    value.recommendation === 'accept_change' &&
+    required.length > 0 &&
+    required.every((criterion) => criterion.status === 'pass' &&
+      Array.isArray(criterion.evidenceIds) && criterion.evidenceIds.length > 0 &&
+      criterion.evidenceIds.every((id) => evidenceIds.has(id))) &&
+    value.integrity && value.integrity.status === 'pass' &&
+    value.integrity.evidenceRecorded === true &&
+    value.integrity.criticalCount === 0,
   );
 }
 

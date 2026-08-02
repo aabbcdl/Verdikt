@@ -1168,6 +1168,7 @@ async function executeLoop(
             issues: check.violations.map((violation) => ({
               rule: violation.rule,
               detail: violation.detail,
+              file: violation.file,
               severity: violation.severity,
             })),
           };
@@ -1184,6 +1185,7 @@ async function executeLoop(
           (issue, index) => ({
             rule: issue.rule,
             detail: issue.detail,
+            file: issue.file,
             severity:
               issue.severity ?? (index < capturedIntegrity.criticalCount ? "critical" : "warning"),
           }),
@@ -1997,6 +1999,7 @@ function buildIntegritySummary(
     issues: violations.map((violation) => ({
       rule: violation.rule,
       detail: violation.detail,
+      file: violation.file,
       severity: violation.severity,
     })),
   };

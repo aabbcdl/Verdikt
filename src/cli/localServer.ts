@@ -37,11 +37,16 @@ export function dataContentType(fileName: string): string {
   return "text/plain; charset=utf-8";
 }
 
-export function injectDefaultDataDir(html: string, dataDir: string): string {
-  return html.replace(
-    "let basePath = params.get('dir') || '';",
-    `let basePath = params.get('dir') || '${dataDir}';`,
-  );
+export function injectDefaultDataDir(html: string, dataDir: string, verdictPath = ""): string {
+  return html
+    .replace(
+      "let basePath = params.get('dir') || '';",
+      `let basePath = params.get('dir') || '${dataDir}';`,
+    )
+    .replace(
+      "let verdictPath = params.get('verdict') || '';",
+      `let verdictPath = params.get('verdict') || '${verdictPath}';`,
+    );
 }
 
 export async function listenLocal(

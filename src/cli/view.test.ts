@@ -47,6 +47,7 @@ describe("View server", () => {
     expect(server.host).toBe("127.0.0.1");
     expect(pageResponse.status).toBe(200);
     expect(pageHtml).toContain("'/data'");
+    expect(pageHtml).toContain("'/api/verdict'");
     expect(dataResponse.status).toBe(200);
     expect(data.runId).toBe(runId);
     expect(verdictResponse.status).toBe(200);

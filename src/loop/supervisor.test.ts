@@ -650,11 +650,13 @@ describe("SupervisorLoop multi-round convergence", () => {
           severity: "warning",
           rule: "suspicious-file-changed",
           detail: "Suspicious file changed: scripts/check.ts",
+          file: "scripts/check.ts",
         },
         {
           severity: "critical",
           rule: "test-file-modified",
           detail: "Test file was modified: test/sum.test.ts",
+          file: "test/sum.test.ts",
         },
       ],
     });

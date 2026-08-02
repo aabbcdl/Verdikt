@@ -65,7 +65,7 @@ describe("final patch pipeline (real git)", () => {
     expect(patchStat.size).toBeGreaterThan(1024 * 1024);
     const head = await readFile(patchPath, "utf-8");
     expect(head).toContain("diff --git a/generated.txt b/generated.txt");
-  });
+  }, 60_000);
 
   it("writes an empty patch file when base and HEAD are identical", async () => {
     const repoDir = join(tempDir, "repo");

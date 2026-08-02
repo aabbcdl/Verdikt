@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { UsageSummary } from "../types.js";
 import { coerceUsageSummary, formatCost, mergeUsage } from "../usage.js";
+import { readVerdictResult } from "../verdict/store.js";
 import {
   type LocalServerHandle,
   dataContentType,
@@ -176,7 +177,50 @@ export async function startDashboardServer(options: {
         : resolve(import.meta.dirname, "../../apps/ui/index.html");
       const html = await readFileFs(htmlPath, "utf-8");
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      res.end(injectDefaultDataDir(html, `/data/${encodeURIComponent(id)}`));
+      res.end(
+        injectDefaultDataDir(
+          html,
+          `/data/${encodeURIComponent(id)}`,
+          `/api/verdict/${encodeURIComponent(id)}`,
+        ),
+      );
+      return;
+    }
+
+    if (url.pathname.startsWith("/api/verdict/") && req.method === "GET") {
+      const id = url.pathname.replace("/api/verdict/", "");
+      if (!isValidRunId(id)) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid run ID" }));
+        return;
+      }
+      const itemDir = join(stateDir, id);
+      if (!isPathInside(stateDir, itemDir)) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Access denied" }));
+        return;
+      }
+      const verdict = await readVerdictResult(itemDir);
+      if (verdict.status === "ok") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(verdict.verdict));
+        return;
+      }
+      if (verdict.status === "missing") {
+        const legacy = existsSync(join(itemDir, "summary.json"));
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: legacy ? "Legacy run" : "Run not found", legacy }));
+        return;
+      }
+      res.writeHead(422, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error:
+            verdict.status === "unsupported"
+              ? `Unsupported verdict version: ${String(verdict.version)}`
+              : verdict.error,
+        }),
+      );
       return;
     }
 

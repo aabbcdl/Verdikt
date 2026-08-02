@@ -12,6 +12,7 @@
  *     state.json         — run state for resume (task, instruction, iteration)
  */
 
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
@@ -63,7 +64,10 @@ export async function recordIteration(runDir: string, record: IterationRecord): 
 export async function writeSummary(runDir: string, result: RunResult): Promise<void> {
   const task = await readSavedTask(runDir);
   const timestamp = new Date().toISOString();
+  const resultId = randomUUID();
   const summary = {
+    // Shared with verdict.json so readers can reject a partially paired write.
+    resultId,
     // Run metadata
     runId: result.runId ?? null,
     taskId: result.taskId ?? null,
@@ -154,7 +158,7 @@ export async function writeSummary(runDir: string, result: RunResult): Promise<v
     }),
   };
 
-  const verdict = buildVerdictResult(result, task, { createdAt: timestamp });
+  const verdict = buildVerdictResult(result, task, { createdAt: timestamp, resultId });
   await Promise.all([
     writeJsonAtomic(join(runDir, "summary.json"), summary, { backup: true }),
     writeJsonAtomic(join(runDir, "verdict.json"), verdict, { backup: true }),

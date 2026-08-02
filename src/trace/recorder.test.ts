@@ -134,6 +134,8 @@ describe("Trace Recorder", () => {
       expect(summary.stopReason).toBe("passed");
       expect(summary.totalIterations).toBe(1);
       expect(summary.totalCostUsd).toBe(0.5);
+      expect(summary.resultId).toEqual(verdict.resultId);
+      expect(typeof summary.resultId).toBe("string");
       expect(verdict).toMatchObject({
         version: 1,
         status: "needs_review",

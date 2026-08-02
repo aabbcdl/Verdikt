@@ -4,6 +4,7 @@
 
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { readVerdictResult } from "../verdict/store.js";
 import {
   type LocalServerHandle,
   dataContentType,
@@ -83,7 +84,38 @@ export async function startViewServer(options: {
     if (url.pathname === "/" || url.pathname === "/index.html") {
       const html = await readFileFs(htmlPath, "utf-8");
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      res.end(injectDefaultDataDir(html, "/data"));
+      res.end(injectDefaultDataDir(html, "/data", "/api/verdict"));
+      return;
+    }
+
+    if (url.pathname === "/api/verdict" && req.method === "GET") {
+      const verdict = await readVerdictResult(itemDir);
+      if (verdict.status === "ok") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(verdict.verdict));
+        return;
+      }
+      if (verdict.status === "missing") {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            error: existsSync(summaryPath)
+              ? "Verdict result is not available for this legacy run"
+              : "Run not found",
+            legacy: existsSync(summaryPath),
+          }),
+        );
+        return;
+      }
+      res.writeHead(422, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error:
+            verdict.status === "unsupported"
+              ? `Unsupported verdict version: ${String(verdict.version)}`
+              : verdict.error,
+        }),
+      );
       return;
     }
 

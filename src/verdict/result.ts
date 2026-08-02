@@ -20,6 +20,7 @@ import type {
 
 export interface BuildVerdictOptions {
   createdAt?: string;
+  resultId?: string;
   verdiktVersion?: string;
 }
 
@@ -41,7 +42,9 @@ export function buildVerdictResult(
   const agentEvidence = buildAgentEvidence(result);
   const reviewEvidence = buildReviewEvidence(result);
   const evidence = [...commandEvidence, ...reviewEvidence.evidence, ...agentEvidence];
-  const integrity = buildIntegrity(result.integritySummary);
+  const integrityResult = buildIntegrity(result.integritySummary);
+  const integrity = integrityResult.integrity;
+  evidence.push(...integrityResult.evidence);
   const findings = [...integrity.findings, ...reviewEvidence.findings];
   const scope = buildScope(result);
   const status = resolveStatus(result, criteria, integrity);
@@ -51,6 +54,7 @@ export function buildVerdictResult(
 
   return {
     version: 1,
+    resultId: options.resultId,
     run: {
       runId: result.runId ?? "unknown",
       taskId: result.taskId ?? task?.id,
@@ -233,43 +237,62 @@ function buildScope(result: RunResult): VerdictResult["scope"] {
   };
 }
 
-function buildIntegrity(snapshot: IntegritySnapshot | undefined): VerdictIntegrity {
+function buildIntegrity(snapshot: IntegritySnapshot | undefined): {
+  integrity: VerdictIntegrity;
+  evidence: VerdictEvidence[];
+} {
   if (!snapshot) {
     return {
-      status: "skipped",
-      testsModified: null,
-      acceptanceWeakened: null,
-      evidenceRecorded: false,
-      criticalCount: 0,
-      warningCount: 0,
-      findings: [],
+      integrity: {
+        status: "skipped",
+        testsModified: null,
+        acceptanceWeakened: null,
+        evidenceRecorded: false,
+        criticalCount: 0,
+        warningCount: 0,
+        findings: [],
+      },
+      evidence: [],
     };
   }
 
+  const evidence: VerdictEvidence[] = snapshot.issues.map((issue, index) => ({
+    id: `integrity-evidence:${index + 1}`,
+    kind: "file",
+    source: "verified_execution",
+    assurance: "verified",
+    title: displayName(issue.rule),
+    summary: issue.detail,
+    artifactPath: issue.file,
+  }));
   const findings: VerdictFinding[] = snapshot.issues.map((issue, index) => ({
     id: `integrity:${index + 1}`,
     severity: issue.severity === "critical" ? "critical" : "medium",
     title: displayName(issue.rule),
     detail: issue.detail,
-    evidenceIds: [],
+    file: issue.file,
+    evidenceIds: [`integrity-evidence:${index + 1}`],
   }));
   const rules = new Set(snapshot.issues.map((issue) => issue.rule));
   const testsModified = [...rules].some((rule) => isTestModificationRule(rule));
   const acceptanceWeakened = [...rules].some((rule) => isAcceptanceWeakeningRule(rule));
 
   return {
-    status:
-      snapshot.criticalCount > 0
-        ? "fail"
-        : snapshot.warningCount > 0 || snapshot.status === "violations"
-          ? "warning"
-          : "pass",
-    testsModified,
-    acceptanceWeakened,
-    evidenceRecorded: true,
-    criticalCount: snapshot.criticalCount,
-    warningCount: snapshot.warningCount,
-    findings,
+    integrity: {
+      status:
+        snapshot.criticalCount > 0
+          ? "fail"
+          : snapshot.warningCount > 0 || snapshot.status === "violations"
+            ? "warning"
+            : "pass",
+      testsModified,
+      acceptanceWeakened,
+      evidenceRecorded: true,
+      criticalCount: snapshot.criticalCount,
+      warningCount: snapshot.warningCount,
+      findings,
+    },
+    evidence,
   };
 }
 

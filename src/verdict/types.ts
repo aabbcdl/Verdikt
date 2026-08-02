@@ -117,6 +117,8 @@ export interface VerdictProvenance {
 
 export interface VerdictResult {
   version: 1;
+  /** Identifier shared with summary.json for pair consistency checks. */
+  resultId?: string;
   run: VerdictRun;
   status: VerdictStatus;
   summary: VerdictSummary;

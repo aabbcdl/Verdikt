@@ -329,7 +329,13 @@ export async function startAppServer(options: {
         : resolve(import.meta.dirname, "../../apps/ui/index.html");
       const html = await readFileFs(htmlPath, "utf-8");
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      res.end(injectDefaultDataDir(html, `/data/${encodeURIComponent(id)}`));
+      res.end(
+        injectDefaultDataDir(
+          html,
+          `/data/${encodeURIComponent(id)}`,
+          `/api/verdict/${encodeURIComponent(id)}`,
+        ),
+      );
       return;
     }
 
