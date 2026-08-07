@@ -30,7 +30,7 @@ export interface TaskSpec {
   acceptance: AcceptanceCriteria;
   /** Max iteration rounds (default 5) */
   maxIterations: number;
-  /** Hard budget cap in USD (optional) */
+  /** Cost stop target in USD when provider usage is complete (optional) */
   maxBudgetUsd?: number;
   /** Integrity / anti-cheating policy (optional, defaults to strict) */
   integrity?: IntegrityPolicy;
@@ -106,7 +106,7 @@ export interface TaskStage {
   acceptance?: AcceptanceCriteria;
   /** Maximum attempts allowed inside this stage. */
   maxIterations?: number;
-  /** Maximum cost allowed inside this stage. */
+  /** Cost stop target for this stage when usage data is available. */
   maxBudgetUsd?: number;
   /** Always pause for approval before entering this stage. */
   requireApproval?: boolean;
@@ -279,12 +279,16 @@ export interface IterationRecord {
   stageIteration?: number;
   /** What the executor did (free-form text from Claude) */
   executorOutput: string;
+  /** Structured Claude Code ending for the executor call. */
+  executorTermination?: AgentTermination;
   /** Files that changed in this iteration */
   changedFiles: string[];
   /** Objective judge results */
   judge: JudgeResult;
   /** Verifier's interpretation */
   verifierVerdict: VerifierVerdict;
+  /** Structured Claude Code ending for the verifier call. */
+  verifierTermination?: AgentTermination;
   /** Tokens used (if reported) */
   tokensUsed?: number;
   /** Cost in USD (if reported) */
@@ -313,6 +317,7 @@ export interface PartialIterationRecord {
   stageId?: string;
   stageIteration?: number;
   executorOutput?: string;
+  executorTermination?: AgentTermination;
   executorDurationMs?: number;
   executorUsage?: UsageSummary;
   preExecutorCommit?: string;
@@ -324,6 +329,7 @@ export interface PartialIterationRecord {
   integrity?: IntegritySnapshot;
   judge?: JudgeResult;
   verifierVerdict?: VerifierVerdict;
+  verifierTermination?: AgentTermination;
   verifierUsage?: UsageSummary;
   providerError?: ProviderErrorSummary;
 }
@@ -345,7 +351,7 @@ export interface IntegritySnapshot {
 export type StopReason =
   | "passed" // All judge checks green
   | "max_iterations" // Hit iteration cap
-  | "budget_exceeded" // Hit USD budget cap
+  | "budget_exceeded" // Reached the configured USD cost stop target
   | "no_progress" // Stuck — consecutive identical failures
   | "cancelled" // User cancelled the run
   | "interrupted" // App stopped; saved state can be resumed
@@ -408,6 +414,8 @@ export interface RunResult {
   evidenceManifestPath?: string;
   /** Structured result for read-only code review tasks. */
   reviewReport?: ReviewReport;
+  /** Structured Claude Code ending for a read-only review task. */
+  reviewTermination?: AgentTermination;
   /** True when the run intentionally did not modify files. */
   reviewOnly?: boolean;
   /** Facts already completed in the active iteration when the run stopped. */
@@ -495,9 +503,30 @@ export interface ProviderErrorSummary {
   statusCode?: number;
   message: string;
   retryable: boolean;
+  cliVersion?: string;
+  endType?: string;
+  terminalReason?: string;
+  stopReason?: string;
+  isError?: boolean;
+  exitCode?: number;
 }
 
-export interface DriverFailure {
+export interface AgentTermination {
+  /** Claude Code CLI version used for this call, when available. */
+  cliVersion?: string;
+  /** Structured result subtype reported by Claude Code. */
+  endType?: string;
+  /** Structured terminal reason reported by Claude Code. */
+  terminalReason?: string;
+  /** Model stop reason reported by Claude Code. */
+  stopReason?: string;
+  /** Claude Code's is_error flag, retained as evidence rather than trusted alone. */
+  isError?: boolean;
+  /** Process exit code observed by Verdikt. */
+  exitCode?: number;
+}
+
+export interface DriverFailure extends AgentTermination {
   kind: "provider_error" | "process_error";
   category?: ProviderErrorCategory;
   statusCode?: number;
@@ -518,4 +547,6 @@ export interface DriverOutput {
   durationMs: number;
   /** Structured failure information when Claude could not complete the request. */
   failure?: DriverFailure;
+  /** Structured evidence describing how Claude Code ended the request. */
+  termination?: AgentTermination;
 }

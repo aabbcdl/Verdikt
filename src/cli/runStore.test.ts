@@ -323,11 +323,14 @@ describe("listSavedRuns", () => {
     expect(run.advice.title).toContain("\u4f59\u989d");
   });
 
-  it("excludes test and benchmark runs from default statistics", async () => {
-    for (const [runId, runSource] of [
-      ["run-user-stats", "user"],
-      ["run-test-stats", "test"],
-      ["run-benchmark-stats", "benchmark"],
+  it("counts only unarchived user runs in formal task statistics", async () => {
+    for (const { runId, runSource, archived = false } of [
+      { runId: "run-user-stats", runSource: "user" },
+      { runId: "run-demo-stats", runSource: "demo" },
+      { runId: "run-test-stats", runSource: "test" },
+      { runId: "run-benchmark-stats", runSource: "benchmark" },
+      { runId: "run-unknown-stats", runSource: "unknown" },
+      { runId: "run-archived-user-stats", runSource: "user", archived: true },
     ] as const) {
       const runDir = join(stateDir, runId);
       await mkdir(runDir, { recursive: true });
@@ -345,6 +348,13 @@ describe("listSavedRuns", () => {
         }),
         "utf-8",
       );
+      if (archived) {
+        await writeFile(
+          join(runDir, "metadata.json"),
+          JSON.stringify({ pinned: false, archived: true, tags: [], note: "" }),
+          "utf-8",
+        );
+      }
     }
 
     const stats = await buildRunStats(stateDir);

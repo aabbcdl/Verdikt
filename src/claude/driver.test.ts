@@ -16,6 +16,11 @@ vi.mock("node:child_process", () => {
   };
   return {
     spawn: vi.fn(() => mockChild),
+    spawnSync: vi.fn(() => ({
+      status: 0,
+      stdout: "2.1.221 (Claude Code)\n",
+      stderr: "",
+    })),
   };
 });
 
@@ -183,6 +188,104 @@ describe("callClaude", () => {
         retryable: false,
       }),
     );
+  });
+
+  it("keeps a structured completed result usable when is_error is contradictory", async () => {
+    const { spawn } = await import("node:child_process");
+    const mockChild = spawn("echo", []);
+
+    let closeHandler: ((code: number) => void) | undefined;
+    let stdoutHandler: ((chunk: Buffer) => void) | undefined;
+    (mockChild.on as ReturnType<typeof vi.fn>).mockImplementation(
+      (event: string, handler: unknown) => {
+        if (event === "close") closeHandler = handler as (code: number) => void;
+      },
+    );
+    (mockChild.stdout?.on as ReturnType<typeof vi.fn>).mockImplementation(
+      (event: string, handler: unknown) => {
+        if (event === "data") stdoutHandler = handler as (chunk: Buffer) => void;
+      },
+    );
+    (mockChild.stderr?.on as ReturnType<typeof vi.fn>).mockImplementation(() => {});
+
+    const promise = callClaudeOnce(baseInput);
+    stdoutHandler?.(
+      Buffer.from(
+        JSON.stringify({
+          type: "result",
+          subtype: "success",
+          is_error: true,
+          terminal_reason: "completed",
+          stop_reason: "end_turn",
+          result: "Implemented and verified the requested change.",
+        }),
+      ),
+    );
+    closeHandler?.(1);
+
+    const result = await promise;
+
+    expect(result.failure).toBeUndefined();
+    expect(result.text).toBe("Implemented and verified the requested change.");
+    expect(result.termination).toEqual(
+      expect.objectContaining({
+        cliVersion: "2.1.221 (Claude Code)",
+        endType: "success",
+        terminalReason: "completed",
+        stopReason: "end_turn",
+        isError: true,
+        exitCode: 1,
+      }),
+    );
+  });
+
+  it("classifies max-turn endings as process failures with structured diagnostics", async () => {
+    const { spawn } = await import("node:child_process");
+    const mockChild = spawn("echo", []);
+
+    let closeHandler: ((code: number) => void) | undefined;
+    let stdoutHandler: ((chunk: Buffer) => void) | undefined;
+    (mockChild.on as ReturnType<typeof vi.fn>).mockImplementation(
+      (event: string, handler: unknown) => {
+        if (event === "close") closeHandler = handler as (code: number) => void;
+      },
+    );
+    (mockChild.stdout?.on as ReturnType<typeof vi.fn>).mockImplementation(
+      (event: string, handler: unknown) => {
+        if (event === "data") stdoutHandler = handler as (chunk: Buffer) => void;
+      },
+    );
+    (mockChild.stderr?.on as ReturnType<typeof vi.fn>).mockImplementation(() => {});
+
+    const promise = callClaudeOnce(baseInput);
+    stdoutHandler?.(
+      Buffer.from(
+        JSON.stringify({
+          type: "result",
+          subtype: "error_max_turns",
+          is_error: true,
+          terminal_reason: "max_turns",
+          stop_reason: "tool_use",
+          errors: ["Reached maximum number of turns (12)"],
+        }),
+      ),
+    );
+    closeHandler?.(1);
+
+    const result = await promise;
+
+    expect(result.failure).toEqual(
+      expect.objectContaining({
+        kind: "process_error",
+        message: "Reached maximum number of turns (12)",
+        retryable: false,
+        cliVersion: "2.1.221 (Claude Code)",
+        endType: "error_max_turns",
+        terminalReason: "max_turns",
+        exitCode: 1,
+      }),
+    );
+    expect(result.failure?.kind).not.toBe("provider_error");
   });
 
   it("returns text on successful JSON output", async () => {

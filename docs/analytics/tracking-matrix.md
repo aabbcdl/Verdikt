@@ -2,7 +2,7 @@
 
 ## 目的
 
-这份矩阵只记录会支持真实产品决策的数据。当前记录保存在每次运行目录的 `events.jsonl`、`summary.json` 和 `state.json` 中；默认统计排除测试与 benchmark，旧记录不会被自动删除。
+这份矩阵只记录会支持真实产品决策的数据。当前记录保存在每次运行目录的 `events.jsonl`、`summary.json` 和 `state.json` 中；正式任务统计只纳入未归档且 `runSource = user` 的运行，示例、测试、benchmark、未知来源和已归档记录仍会保留并可单独查看。
 
 ## 数据边界
 
@@ -66,7 +66,7 @@
 ## 上线后读取方式
 
 1. 按 `runId` 合并 `events.jsonl`、`summary.json`、`state.json`。
-2. 先按 `runSource` 分层；默认剔除 `test` 和 `benchmark`。
+2. 先按 `runSource` 分层；正式任务统计只使用未归档的 `runSource = user`，示例指标只使用 `runSource = demo`，其他来源不混入两者。
 3. 同时存在 summary 和 state 时，summary 提供已完成事实，state 提供是否可继续和当前部分进度。
 4. 费用状态不是 `complete` 时，不把缺失费用当作零；单独报告未知占比。
 5. 周报必须同时给出样本量，样本不足 30 次正式用户运行时只展示原始数量，不宣称趋势。

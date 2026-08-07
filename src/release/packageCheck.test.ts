@@ -15,6 +15,9 @@ describe("package publish check", () => {
         "apps/ui/index.html",
         "scripts/start-verdikt-app.ps1",
         "scripts/start-verdikt-app.sh",
+        "assets/demo-project/package.json",
+        "assets/demo-project/src/sum.js",
+        "assets/demo-project/test/sum.test.js",
         "dist/index.js",
         "dist/index.d.ts",
         "dist/cli/app.js",
@@ -30,16 +33,23 @@ describe("package publish check", () => {
       "apps/ui/app.html",
       "scripts/start-verdikt-app.ps1",
       "scripts/start-verdikt-app.sh",
+      "assets/demo-project/package.json",
+      "assets/demo-project/src/sum.js",
+      "assets/demo-project/test/sum.test.js",
       "src/index.ts",
       "dist/index.test.js",
       "tasks/benchmark/s1-reverse.json",
       ".github/workflows/ci.yml",
       "apps/vscode/src/extension.ts",
+      "assets/demo-project/node_modules/vitest/package.json",
+      "assets/demo-project/.verdikt/run-001/summary.json",
     ]);
 
     expect(findings).toEqual([
       "Package includes non-runtime file: .github/workflows/ci.yml",
       "Package includes non-runtime file: apps/vscode/src/extension.ts",
+      "Package includes non-runtime file: assets/demo-project/.verdikt/run-001/summary.json",
+      "Package includes non-runtime file: assets/demo-project/node_modules/vitest/package.json",
       "Package includes test artifact: dist/index.test.js",
       "Package includes non-runtime file: src/index.ts",
       "Package includes non-runtime file: tasks/benchmark/s1-reverse.json",
@@ -52,6 +62,9 @@ describe("package publish check", () => {
       "Package is missing required runtime file: apps/ui/app.html",
       "Package is missing required runtime file: scripts/start-verdikt-app.ps1",
       "Package is missing required runtime file: scripts/start-verdikt-app.sh",
+      "Package is missing required runtime file: assets/demo-project/package.json",
+      "Package is missing required runtime file: assets/demo-project/src/sum.js",
+      "Package is missing required runtime file: assets/demo-project/test/sum.test.js",
     ]);
   });
 });

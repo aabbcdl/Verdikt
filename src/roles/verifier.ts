@@ -9,6 +9,7 @@
 
 import { type StreamCallbacks, callClaude } from "../claude/driver.js";
 import type {
+  AgentTermination,
   DriverFailure,
   JudgeResult,
   TaskSpec,
@@ -22,6 +23,7 @@ export interface VerifierResult {
   costUsd?: number;
   usage?: UsageSummary;
   failure?: DriverFailure;
+  termination?: AgentTermination;
 }
 
 export interface VerifierOptions {
@@ -65,6 +67,7 @@ export async function runVerifier(
       costUsd: result.costUsd,
       usage: result.usage,
       failure: result.failure,
+      termination: result.termination,
     };
   }
 
@@ -76,6 +79,7 @@ export async function runVerifier(
       ),
       costUsd: result.costUsd,
       usage: result.usage,
+      termination: result.termination,
     };
   }
 
@@ -83,6 +87,7 @@ export async function runVerifier(
     verdict: parseVerifierOutput(result.text, judge, options.requireJudgePass !== false),
     costUsd: result.costUsd,
     usage: result.usage,
+    termination: result.termination,
   };
 }
 

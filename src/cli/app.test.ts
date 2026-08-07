@@ -9,6 +9,11 @@ import { appendRunEvent } from "../trace/events.js";
 import type { TaskSpec } from "../types.js";
 import { buildBrowserOpenCommand, parseAppArgs, startAppServer } from "./app.js";
 import { isPathInside } from "./localServer.js";
+import {
+  emptyPersistedRunQueue,
+  savePersistedRunQueue,
+  upsertPersistedRun,
+} from "./persistentQueue.js";
 
 const servers: Array<{ close: () => Promise<void> }> = [];
 
@@ -166,9 +171,16 @@ describe("App server", () => {
     expect(html).toContain('for="workbenchStatus"');
     expect(html).toContain('for="workbenchSource"');
     expect(html).toContain('for="workbenchRepo"');
+    expect(html).toContain("正式任务统计");
+    expect(html).toContain("正式任务数");
+    expect(html).toContain('<label for="maxBudget">费用停止目标 USD</label>');
+    expect(html).toContain("费用数据完整时，达到目标后停止");
+    expect(html).toContain("费用未知或不完整时只能提醒，实际费用可能超过目标");
+    expect(html).not.toContain("预算上限 USD");
     expect(html).toContain('aria-label="验收步骤 1 名称"');
     expect(html).toContain('aria-live="polite"');
     expect(html).toContain('aria-current="page"');
+    expect(html).toMatch(/\.status-idle\s*\{[^}]*color:\s*#4f5b70;/);
     expect(html).not.toContain("alert('当前配置");
     expect(html).toMatch(/\.workbench-list\s*\{[^}]*max-height:\s*none;[^}]*overflow:\s*visible;/);
     expect(html).toMatch(
@@ -211,6 +223,29 @@ describe("App server", () => {
       expect(response.status).toBe(400);
       expect(((await response.json()) as { error: string }).error).toContain("iteration");
     }
+  });
+
+  it("rejects notes for terminal runs instead of reporting a queued next round", async () => {
+    const runId = "run-terminal-note";
+    const runDir = join(stateDir, runId);
+    await mkdir(runDir, { recursive: true });
+    await writeFile(
+      join(runDir, "summary.json"),
+      JSON.stringify({ runId, stopReason: "max_iterations", applyStatus: "pending" }),
+      "utf-8",
+    );
+    const app = await startAppServer({ port: 0, logStartup: false });
+    servers.push(trackApp(app));
+
+    const response = await fetch(`${app.url}/api/note/${runId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: "继续修复" }),
+    });
+    const body = (await response.json()) as { error?: string };
+
+    expect(response.status).toBe(409);
+    expect(body.error).toContain("already finished");
   });
 
   it("presents a completed review run as a review, not a failed task", async () => {
@@ -313,6 +348,33 @@ describe("App server", () => {
 
     expect(listItem).toMatchObject({ usageStatus: "complete", totalCostUsd: 0.25 });
     expect(detail.result).toMatchObject({ usageStatus: "complete", totalCostUsd: 0.25 });
+  });
+
+  it("uses human-readable terminal phase details", async () => {
+    const runId = "run-max-iterations-phase";
+    const runDir = join(stateDir, runId);
+    await mkdir(runDir, { recursive: true });
+    await writeFile(
+      join(runDir, "summary.json"),
+      JSON.stringify({
+        runId,
+        stopReason: "max_iterations",
+        totalIterations: 3,
+        totalDurationMs: 1000,
+        totalCostUsd: 0,
+        applyStatus: "pending",
+      }),
+      "utf-8",
+    );
+    const app = await startAppServer({ port: 0, logStartup: false });
+    servers.push(trackApp(app));
+
+    const response = await fetch(`${app.url}/api/run/${runId}`);
+    const body = (await response.json()) as { phase?: { detail?: string } };
+
+    expect(response.status).toBe(200);
+    expect(body.phase?.detail).toContain("达到轮数上限");
+    expect(body.phase?.detail).not.toContain("max_iterations");
   });
 
   it("serves favicon requests without console-noisy 404s", async () => {
@@ -435,6 +497,14 @@ describe("App server", () => {
     elements.repoPath.value = "";
     elements.goal.value = "";
     const rows = createMutableStepRows();
+    const preparedDemoPath = join(stateDir, "demo-project");
+    const formListeners: Record<string, () => void> = {};
+    elements.viewNew = {
+      ...elements.workbenchList,
+      addEventListener: (name: string, listener: () => void) => {
+        formListeners[name] = listener;
+      },
+    } as unknown as FakeElement;
     const context = createAppContext({
       document: {
         getElementById: (id: string) => elements[id],
@@ -444,21 +514,99 @@ describe("App server", () => {
         clearInterval: () => undefined,
         setInterval: () => 0,
       },
+      fetch: async (input: string) => {
+        expect(input).toBe("/api/demo/reset");
+        return {
+          ok: true,
+          json: async () => ({
+            repoPath: preparedDemoPath,
+            inspection: {
+              ok: true,
+              repoPath: preparedDemoPath,
+              projectName: "demo-project",
+              git: { isRepository: true, clean: true, branch: "main", dirtyFiles: [] },
+              projectType: "Node.js",
+              packageManager: "npm",
+              recommendedSteps: [{ id: "test", command: "npm", args: ["test"], required: true }],
+              summary: "ready",
+              issues: [],
+            },
+          }),
+        };
+      },
     } as Record<string, unknown>);
 
     new Script(script, { filename: "app.html <script>" }).runInContext(context);
-    new Script("fillDemoTask();").runInContext(context);
+    await new Script("fillDemoTask();").runInContext(context);
     const task = new Script("buildTaskSpec();").runInContext(context) as TaskSpec;
 
-    expect(task.repoPath.replace(/\\/g, "/")).toContain("examples/demo-failing-test");
+    expect(task.repoPath).toBe(preparedDemoPath);
     expect(task.goal).toContain("sum");
-    expect(task.acceptance.steps).toEqual([
-      { id: "test", command: "npx", args: ["vitest", "run"] },
-    ]);
+    expect(task.acceptance.steps).toEqual([{ id: "test", command: "npm", args: ["test"] }]);
     expect(task.planning).toEqual({ mode: "off", requireApproval: false });
     expect(task.stages).toBeUndefined();
     expect(task.maxIterations).toBe(2);
     expect(task.runSource).toBe("demo");
+
+    new Script("renderConfigPreview(buildTaskSpec());").runInContext(context);
+    expect(elements.configPreviewContent.innerHTML).toContain("费用停止目标 $1.00");
+    expect(elements.configPreviewContent.innerHTML).toContain(
+      "费用未知或不完整时只能提醒，实际费用可能超过目标",
+    );
+
+    formListeners.input();
+    const editedTask = new Script("buildTaskSpec();").runInContext(context) as TaskSpec;
+    expect(editedTask.runSource).toBe("user");
+  });
+
+  it("clears a stale project error after the project check succeeds", async () => {
+    const app = await startAppServer({ port: 0, logStartup: false });
+    servers.push(trackApp(app));
+    const html = await (await fetch(app.url)).text();
+    const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1] ?? "";
+    const elements = createAppElements();
+    const blankElement = (): FakeElement => ({
+      ...elements.repoPath,
+      style: { width: "" },
+    });
+    elements.formErrorSummary = blankElement();
+    elements.formErrorSummary.hidden = false;
+    elements.repoPathError = blankElement();
+    elements.repoPathError.hidden = false;
+    elements.repoPathError.textContent = "Project check failed";
+    elements.projectStatus = blankElement();
+    elements.inspectProjectBtn = blankElement();
+    elements.acceptanceSummary = blankElement();
+    const rows = createMutableStepRows();
+    const context = createAppContext({
+      document: {
+        getElementById: (id: string) => elements[id],
+        querySelectorAll: (selector: string) => (selector === ".step-row" ? rows : []),
+      },
+      window: { clearInterval: () => undefined, setInterval: () => 0 },
+      fetch: async () => ({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          repoPath: tempDir,
+          projectType: "Node.js",
+          packageManager: "npm",
+          git: { branch: "main" },
+          recommendedSteps: [{ id: "test", command: "npm", args: ["test"] }],
+          summary: "ready",
+          issues: [],
+        }),
+      }),
+    } as Record<string, unknown>);
+
+    new Script(script, { filename: "app.html <script>" }).runInContext(context);
+    await new Script("acceptanceAutoManaged = false; inspectCurrentProject(false);").runInContext(
+      context,
+    );
+
+    expect(elements.formErrorSummary.hidden).toBe(true);
+    expect(elements.repoPathError.hidden).toBe(true);
+    expect(elements.repoPathError.textContent).toBe("");
   });
 
   it("shows live stalls and paginates history without silently hiding older runs", async () => {
@@ -497,10 +645,17 @@ describe("App server", () => {
 
     expect(() =>
       new Script(
-        `renderWorkbench({ live: [], saved: [{ runId: "run-source-001", taskId: "source-task", goal: "history", repoPath: "repo", status: "passed", applyStatus: "pending", runSource: "user", totalCostUsd: 0, usageStatus: "complete", pinned: false, archived: false, tags: [] }] });`,
+        `renderWorkbench({ live: [], saved: [
+          { runId: "run-source-001", taskId: "formal-task", goal: "formal history", repoPath: "repo", status: "passed", applyStatus: "pending", runSource: "user", totalCostUsd: 0, usageStatus: "complete", pinned: false, archived: false, tags: [] },
+          { runId: "run-source-002", taskId: "demo-task-hidden", goal: "demo history", repoPath: "repo", status: "passed", applyStatus: "pending", runSource: "demo", totalCostUsd: 0, usageStatus: "complete", pinned: false, archived: false, tags: [] },
+          { runId: "run-source-003", taskId: "archived-task-hidden", goal: "archived history", repoPath: "repo", status: "passed", applyStatus: "pending", runSource: "user", totalCostUsd: 0, usageStatus: "complete", pinned: false, archived: true, tags: [] }
+        ] });`,
       ).runInContext(context),
     ).not.toThrow();
     expect(elements.workbenchList.innerHTML).toContain("普通任务");
+    expect(elements.workbenchList.innerHTML).toContain("formal-task");
+    expect(elements.workbenchList.innerHTML).not.toContain("demo-task-hidden");
+    expect(elements.workbenchList.innerHTML).not.toContain("archived-task-hidden");
   });
 
   it("shows exact approval details and truthful cost states", async () => {
@@ -570,12 +725,119 @@ describe("App server", () => {
     } as Record<string, unknown>);
 
     new Script(script, { filename: "app.html <script>" }).runInContext(context);
-    new Script("currentRunId = 'run-apply-001';").runInContext(context);
+    new Script(`currentRunId = 'run-apply-001'; currentResult = { passed: true, applyStatus: 'pending' }; currentPatchReview = {
+      available: true,
+      repoPath: 'D:/repo',
+      files: [{ path: 'src/sum.ts', additions: 1, deletions: 1 }],
+      risk: { verdict: '风险较低' },
+      truncated: false
+    };`).runInContext(context);
 
     await (context as { applyPatch?: () => Promise<void> }).applyPatch?.();
 
     expect(elements.applyBtn.disabled).toBe(true);
     expect(elements.discardBtn.disabled).toBe(true);
+  });
+
+  it("gates patch application on a reviewed patch and keeps terminal recovery honest", async () => {
+    const app = await startAppServer({ port: 0, logStartup: false });
+    servers.push(trackApp(app));
+    const html = await (await fetch(app.url)).text();
+    const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1] ?? "";
+    const elements = createAppElements();
+    let confirmation = "";
+    const context = createAppContext({
+      document: { getElementById: (id: string) => elements[id], querySelectorAll: () => [] },
+      window: { clearInterval: () => undefined, setInterval: () => 0, open: () => undefined },
+      fetch: async () => ({
+        ok: true,
+        json: async () => ({ success: true, applyStatus: "applied" }),
+      }),
+      alert: () => undefined,
+      confirm: (message: string) => {
+        confirmation = message;
+        return true;
+      },
+    } as Record<string, unknown>);
+
+    new Script(script, { filename: "app.html <script>" }).runInContext(context);
+    new Script(
+      "currentRunId = 'run-terminal'; setResultControls({ passed: true, stopReason: 'passed', applyStatus: 'pending' });",
+    ).runInContext(context);
+    expect(elements.applyBtn.disabled).toBe(true);
+
+    new Script(
+      "currentPatchReview = { available: true, repoPath: 'D:/repo', files: [{ path: 'src/sum.ts', additions: 1, deletions: 1 }], risk: { verdict: '风险较低' }, truncated: false }; setResultControls(currentResult);",
+    ).runInContext(context);
+    await new Script("applyPatch()").runInContext(context);
+    expect(confirmation).toContain("项目：D:/repo");
+    expect(confirmation).toContain("文件：1 个");
+    expect(confirmation).toContain("风险：风险较低");
+    expect(elements.applyBtn.disabled).toBe(true);
+
+    new Script(
+      "setResultControls({ passed: false, stopReason: 'max_iterations', resumable: false, applyStatus: 'pending' }); fillResult({ passed: false, stopReason: 'max_iterations', iterations: 3, totalDurationMs: 0, totalCostUsd: 0, usageStatus: 'unknown' });",
+    ).runInContext(context);
+    expect(elements.retryBtn.textContent).toBe("重新运行");
+    expect(elements.noteBtn.disabled).toBe(true);
+    expect(elements.nextIterationNote.disabled).toBe(true);
+    expect(elements.resultReason.textContent).toBe("\u8fbe\u5230\u8f6e\u6570\u4e0a\u9650");
+    expect(elements.currentRunTimer.textContent).not.toBe("-");
+    expect(elements.stageAttempt.textContent).toBe("3 轮");
+    expect(elements.heartbeatAt.textContent).toBe("已结束");
+
+    elements.workbenchStatus.value = "all";
+    elements.workbenchSource.value = "all";
+    elements.workbenchRepo.value = "";
+    new Script(`
+      renderWorkbench({ live: [], saved: [{
+        runId: 'run-max-history', taskId: 'task-without-goal', repoPath: 'repo',
+        status: 'max_iterations', stopReason: 'max_iterations', runSource: 'user',
+        pinned: false, archived: false, tags: []
+      }] });
+    `).runInContext(context);
+    expect(elements.workbenchList.innerHTML).toContain("\u8fbe\u5230\u8f6e\u6570\u4e0a\u9650");
+    expect(elements.workbenchList.innerHTML).not.toContain("max_iterations");
+  });
+
+  it("reveals patch details and explains when a passed run has no patch", async () => {
+    const app = await startAppServer({ port: 0, logStartup: false });
+    servers.push(trackApp(app));
+    const html = await (await fetch(app.url)).text();
+    const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1] ?? "";
+    const elements = createAppElements();
+    let patchScrolledIntoView = false;
+    elements.patchSection.scrollIntoView = () => {
+      patchScrolledIntoView = true;
+    };
+    const context = createAppContext({
+      document: { getElementById: (id: string) => elements[id], querySelectorAll: () => [] },
+      window: { clearInterval: () => undefined, setInterval: () => 0 },
+      fetch: async (input: string) => ({
+        ok: true,
+        json: async () =>
+          input.includes("/api/patch/")
+            ? {
+                available: false,
+                reason: "No final patch is available for this run.",
+                files: [],
+              }
+            : { live: [], saved: [], checks: [], totals: {} },
+      }),
+    } as Record<string, unknown>);
+
+    new Script(script, { filename: "app.html <script>" }).runInContext(context);
+    await new Script(`
+      currentRunId = 'run-no-patch';
+      setResultControls({ passed: true, stopReason: 'passed', applyStatus: 'pending' });
+      openPatchReview();
+    `).runInContext(context);
+
+    expect((elements.patchDetails as FakeElement & { open: boolean }).open).toBe(true);
+    expect(patchScrolledIntoView).toBe(true);
+    expect(elements.patchSummary.textContent).toBe("这次运行没有生成可查看的修改。");
+    expect(elements.patchReview.textContent).toBe("暂无补丁。");
+    expect(elements.applyBtn.disabled).toBe(true);
   });
 
   it("keeps apply and discard disabled for terminal apply states", async () => {
@@ -660,6 +922,34 @@ describe("App server", () => {
     expect(elements.retryBtn.disabled).toBe(false);
     expect(elements.retryBtn.textContent).toBe("\u7ee7\u7eed\u8fd0\u884c");
     expect(elements.discardBtn.disabled).toBe(false);
+  });
+
+  it("clears the stopped result and restores running actions when a saved run resumes", async () => {
+    const app = await startAppServer({ port: 0, logStartup: false });
+    servers.push(trackApp(app));
+    const html = await (await fetch(app.url)).text();
+    const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1] ?? "";
+    const elements = createAppElements();
+    elements.resultShell.hidden = false;
+    elements.runningActions.hidden = true;
+    const context = createAppContext({
+      document: { getElementById: (id: string) => elements[id], querySelectorAll: () => [] },
+      window: { clearInterval: () => undefined, setInterval: () => 0 },
+      fetch: async () => ({
+        ok: true,
+        json: async () => ({ runId: "run-resumed", status: "queued" }),
+      }),
+    } as Record<string, unknown>);
+
+    new Script(script, { filename: "app.html <script>" }).runInContext(context);
+    await new Script(`
+      pollProgress = () => undefined;
+      refreshWorkbench = () => undefined;
+      startSavedRun('/api/resume/run-resumed');
+    `).runInContext(context);
+
+    expect(elements.resultShell.hidden).toBe(true);
+    expect(elements.runningActions.hidden).toBe(false);
   });
 
   it("renders provider failures as a specific resumable state in results and history", async () => {
@@ -949,6 +1239,85 @@ describe("App server", () => {
     expect(body.result?.advice?.nextActions?.join("\n")).toContain("\u7ee7\u7eed\u8fd0\u884c");
   });
 
+  it("resumes a just-stopped live run before its old cleanup timer can remove it", async () => {
+    const runId = "run-resume-immediately";
+    const blockerRunId = "run-active-blocker";
+    const now = new Date().toISOString();
+    const task: TaskSpec = {
+      id: "resume-immediately",
+      goal: "Continue a saved run immediately after it stops",
+      repoPath: tempDir,
+      acceptance: { steps: [{ id: "test", command: process.execPath, args: ["--version"] }] },
+      maxIterations: 2,
+    };
+    let queue = emptyPersistedRunQueue();
+    queue = upsertPersistedRun(queue, {
+      runId: blockerRunId,
+      task: { ...task, id: "active-blocker" },
+      mode: "new",
+      status: "running",
+      queuedAt: now,
+      updatedAt: now,
+      heartbeatAt: now,
+      ownerPid: process.pid,
+    });
+    queue = upsertPersistedRun(queue, {
+      runId,
+      task,
+      mode: "new",
+      status: "queued",
+      queuedAt: now,
+      updatedAt: now,
+    });
+    await savePersistedRunQueue(stateDir, queue);
+
+    const app = await startAppServer({ port: 0, logStartup: false, terminalRunTtlMs: 200 });
+    servers.push(trackApp(app));
+
+    const cancelled = await fetch(`${app.url}/api/cancel/${runId}`, { method: "POST" });
+    expect(cancelled.status).toBe(200);
+
+    const runDir = join(stateDir, runId);
+    await mkdir(runDir, { recursive: true });
+    await writeFile(
+      join(runDir, "state.json"),
+      JSON.stringify({
+        task,
+        instruction: task.goal,
+        nextIteration: 0,
+        totalCostUsd: 0,
+        totalDurationMs: 0,
+        lastSavedAt: now,
+        useWorktree: false,
+        useIntegrity: false,
+        phase: "stopped",
+      }),
+      "utf-8",
+    );
+
+    const archived = await fetch(`${app.url}/api/run/${runId}/metadata`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ archived: true }),
+    });
+    expect(archived.status).toBe(200);
+    const runs = (await (await fetch(`${app.url}/api/runs`)).json()) as {
+      live: Array<{ runId: string; archived?: boolean }>;
+    };
+    expect(runs.live.find((run) => run.runId === runId)?.archived).toBe(true);
+
+    const resumed = await fetch(`${app.url}/api/resume/${runId}`, { method: "POST" });
+    const resumedBody = (await resumed.json()) as { status?: string; queuePosition?: number };
+    expect(resumed.status).toBe(200);
+    expect(resumedBody).toMatchObject({ status: "queued", queuePosition: 1 });
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const status = await fetch(`${app.url}/api/run/${runId}`);
+    const statusBody = (await status.json()) as { status?: string };
+    expect(status.status).toBe(200);
+    expect(statusBody.status).toBe("queued");
+  });
+
   it("returns a clear API error when a saved run summary is unreadable", async () => {
     const runId = "run-bad-summary-001";
     const runDir = join(stateDir, runId);
@@ -1067,9 +1436,22 @@ describe("App server", () => {
   });
 
   it("serves project statistics for the dashboard strip", async () => {
-    for (const [runId, stopReason, repoPath] of [
-      ["run-stats-001", "passed", tempDir],
-      ["run-stats-002", "max_iterations", tempDir],
+    for (const { runId, stopReason, repoPath, runSource, archived = false } of [
+      { runId: "run-stats-001", stopReason: "passed", repoPath: tempDir, runSource: "user" },
+      {
+        runId: "run-stats-002",
+        stopReason: "max_iterations",
+        repoPath: tempDir,
+        runSource: "user",
+      },
+      { runId: "run-stats-demo", stopReason: "passed", repoPath: tempDir, runSource: "demo" },
+      {
+        runId: "run-stats-archived",
+        stopReason: "passed",
+        repoPath: tempDir,
+        runSource: "user",
+        archived: true,
+      },
     ]) {
       const runDir = join(stateDir, runId);
       await mkdir(runDir, { recursive: true });
@@ -1078,6 +1460,7 @@ describe("App server", () => {
         JSON.stringify({
           runId,
           taskId: runId,
+          task: { id: runId, goal: runId, repoPath, runSource },
           goal: runId,
           repoPath,
           stopReason,
@@ -1087,6 +1470,13 @@ describe("App server", () => {
         }),
         "utf-8",
       );
+      if (archived) {
+        await writeFile(
+          join(runDir, "metadata.json"),
+          JSON.stringify({ pinned: false, archived: true, tags: [], note: "" }),
+          "utf-8",
+        );
+      }
     }
 
     const app = await startAppServer({ port: 0, logStartup: false });
@@ -1141,6 +1531,10 @@ function createAppElements(): Record<string, FakeElement> {
     "resultCost",
     "resultDuration",
     "resultReason",
+    "currentRunTimer",
+    "currentStage",
+    "stageAttempt",
+    "heartbeatAt",
     "resultShell",
     "runningActions",
     "resultBanner",
@@ -1151,6 +1545,11 @@ function createAppElements(): Record<string, FakeElement> {
     "workbenchList",
     "patchSummary",
     "patchReview",
+    "patchSection",
+    "patchDetails",
+    "processDetails",
+    "noteBtn",
+    "nextIterationNote",
     "agentTimeline",
     "laneExecutor",
     "laneVerifier",
@@ -1169,6 +1568,8 @@ function createAppElements(): Record<string, FakeElement> {
     "statusHero",
     "projectStats",
     "notificationMode",
+    "configPreview",
+    "configPreviewContent",
   ];
 
   for (const id of ids) {
@@ -1182,6 +1583,7 @@ function createAppElements(): Record<string, FakeElement> {
       scrollTop: 0,
       scrollHeight: 0,
       hidden: false,
+      focus: () => undefined,
       scrollIntoView: () => undefined,
     };
   }
@@ -1226,6 +1628,7 @@ type FakeElement = {
   scrollTop: number;
   scrollHeight: number;
   hidden?: boolean;
+  focus?: (...args: unknown[]) => void;
   scrollIntoView?: () => void;
 };
 

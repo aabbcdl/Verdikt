@@ -1157,7 +1157,7 @@ describe("SupervisorLoop multi-round convergence", () => {
     expect(notes.history).toHaveLength(0);
   });
 
-  it("skips the verifier when the budget is exhausted and the judges failed", async () => {
+  it("skips the verifier when the cost stop target is reached and the judges failed", async () => {
     mockCallClaude.mockResolvedValueOnce({
       text: "expensive attempt",
       timedOut: false,
@@ -1176,10 +1176,10 @@ describe("SupervisorLoop multi-round convergence", () => {
     // Executor only — the verifier call was skipped to avoid extra spend.
     expect(mockCallClaude).toHaveBeenCalledTimes(1);
     expect(result.iterations[0]?.verifierVerdict.done).toBe(false);
-    expect(result.iterations[0]?.verifierVerdict.problems.join(" ")).toContain("预算");
+    expect(result.iterations[0]?.verifierVerdict.problems.join(" ")).toContain("费用停止目标");
   });
 
-  it("warns once that the budget cap cannot be enforced when cost data is incomplete", async () => {
+  it("warns once that the cost stop target is not a hard cap when cost data is incomplete", async () => {
     const runId = "budget-unknown-usage";
     mockCallClaude
       .mockResolvedValueOnce({ text: "attempt", timedOut: false, durationMs: 5 })
@@ -1199,7 +1199,7 @@ describe("SupervisorLoop multi-round convergence", () => {
     expect(mockCallClaude).toHaveBeenCalledTimes(2);
     const events = await readRunEvents(join(TEST_STATE_DIR, runId));
     const budgetWarnings = events.filter(
-      (event) => event.type === "log" && String(event.data?.message ?? "").includes("无法严格执行"),
+      (event) => event.type === "log" && String(event.data?.message ?? "").includes("不是严格上限"),
     );
     expect(budgetWarnings).toHaveLength(1);
   });
@@ -1284,6 +1284,51 @@ describe("SupervisorLoop multi-round convergence", () => {
     );
     expect(eventTypes).toContain("provider_error");
     expect(eventTypes).not.toContain("judges_started");
+  });
+
+  it("lets objective checks decide after a non-provider executor ending", async () => {
+    mockCallClaude
+      .mockResolvedValueOnce({
+        text: "The executor reached its turn limit after editing the file.",
+        timedOut: false,
+        durationMs: 10,
+        usage: { status: "complete", costUsd: 0.01 },
+        failure: {
+          kind: "process_error",
+          message: "Reached maximum number of turns (12)",
+          retryable: false,
+          cliVersion: "2.1.221 (Claude Code)",
+          endType: "error_max_turns",
+          terminalReason: "max_turns",
+          exitCode: 1,
+        },
+        termination: {
+          cliVersion: "2.1.221 (Claude Code)",
+          endType: "error_max_turns",
+          terminalReason: "max_turns",
+          stopReason: "tool_use",
+          isError: true,
+          exitCode: 1,
+        },
+      })
+      .mockResolvedValueOnce({
+        text: JSON.stringify({ done: true, problems: [], nextInstruction: "" }),
+        timedOut: false,
+        durationMs: 10,
+        usage: { status: "complete", costUsd: 0.01 },
+      });
+    mockRunJudges.mockResolvedValueOnce(JUDGE_PASS);
+
+    const result = await runSupervisorLoop(
+      { ...TASK, maxIterations: 1 },
+      { skipWorktree: true, skipIntegrity: true, runId: "executor-max-turns-checked" },
+    );
+
+    expect(result.reason).toBe("passed");
+    expect(mockRunJudges).toHaveBeenCalledOnce();
+    expect(result.iterations[0]?.executorTermination).toEqual(
+      expect.objectContaining({ endType: "error_max_turns", terminalReason: "max_turns" }),
+    );
   });
 
   it("stops in planning when the planner reports a provider error", async () => {

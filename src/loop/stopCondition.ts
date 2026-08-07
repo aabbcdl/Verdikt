@@ -3,7 +3,7 @@
  *
  * This is pure code, no LLM. Four stop conditions:
  * 1. Judge all green → passed
- * 2. Budget exceeded → budget_exceeded
+ * 2. Cost stop target reached → budget_exceeded
  * 3. Max iterations → max_iterations
  * 4. No progress (consecutive identical failures) → no_progress
  */
@@ -37,7 +37,7 @@ export function decideStop(
     return { stop: true, reason: "passed" };
   }
 
-  // 2. Budget exceeded
+  // 2. Cost stop target reached
   if (task.maxBudgetUsd != null && totalCost >= task.maxBudgetUsd) {
     return { stop: true, reason: "budget_exceeded" };
   }

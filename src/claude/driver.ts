@@ -10,14 +10,20 @@
  * with multi-line prompts on Windows.
  */
 
-import { type ChildProcess, spawn } from "node:child_process";
+import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import { unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getConfig } from "../config.js";
 import { buildProviderEnvironment } from "../provider/runtime.js";
 import { providerSettingsFromConfig } from "../provider/settings.js";
-import type { DriverFailure, DriverInput, DriverOutput, UsageSummary } from "../types.js";
+import type {
+  AgentTermination,
+  DriverFailure,
+  DriverInput,
+  DriverOutput,
+  UsageSummary,
+} from "../types.js";
 import { mergeUsage, usageFromClaudeResult, usageFromLegacyCost } from "../usage.js";
 import { killProcessTree } from "./processTree.js";
 
@@ -30,6 +36,7 @@ const SIGKILL_DELAY_MS = 5000;
 // raw text with usage "unknown" — degraded but safe (judge stays the gate).
 const RAW_OUTPUT_LIMIT_CHARS = 200_000;
 const FINAL_TEXT_LIMIT_CHARS = 50_000;
+let cachedClaudeVersion: string | null | undefined;
 
 /**
  * Options for streaming output.
@@ -64,8 +71,7 @@ export { callClaudeOnce };
  */
 function isTransientFailure(output: DriverOutput): boolean {
   if (output.text.includes("[CANCELLED]")) return false;
-  // Structured provider failures are surfaced to the user instead of triggering
-  // another paid or otherwise meaningless provider request.
+  // Retry only failures explicitly classified as transient.
   if (output.failure) return output.failure.retryable;
   // Timeout is transient ? the process may have been slow
   if (output.timedOut) return true;
@@ -372,6 +378,7 @@ async function callClaudeOnce(
         timedOut: false,
         durationMs,
         failure: output.failure,
+        termination: output.termination,
       });
     });
 
@@ -500,6 +507,7 @@ type ParsedClaudeOutput = {
   costUsd?: number;
   usage: UsageSummary;
   failure?: DriverFailure;
+  termination?: AgentTermination;
 };
 
 function parseOutput(stdout: string, stderr: string, exitCode: number): ParsedClaudeOutput {
@@ -512,24 +520,31 @@ function parseOutput(stdout: string, stderr: string, exitCode: number): ParsedCl
       String(parsedJson.result ?? parsedJson.text ?? stdout),
       FINAL_TEXT_LIMIT_CHARS,
     );
-    const failure = classifyProviderFailure(parsedJson, details);
+    const termination = readTermination(parsedJson, exitCode);
+    if (isStructuredCompletedResult(parsedJson)) {
+      return { text, costUsd: usage.costUsd, usage, termination };
+    }
+    const failure = classifyFailure(parsedJson, details, termination, exitCode);
     if (failure) {
+      const failureText = [text, stderr.trim()].filter(Boolean).join("\n");
       return {
         text: limitText(
-          `[DRIVER ERROR] Claude exited with code ${exitCode}\n${text}`,
+          `[DRIVER ERROR] Claude exited with code ${exitCode}\n${failureText}`,
           FINAL_TEXT_LIMIT_CHARS,
         ),
         usage,
         failure,
+        termination,
       };
     }
     if (exitCode === 0) {
-      return { text, costUsd: usage.costUsd, usage };
+      return { text, costUsd: usage.costUsd, usage, termination };
     }
   }
 
   if (exitCode !== 0) {
-    const failure = classifyProviderFailure(undefined, details);
+    const termination = readTermination(undefined, exitCode);
+    const failure = classifyFailure(undefined, details, termination, exitCode);
     return {
       text: limitText(
         `[DRIVER ERROR] Claude exited with code ${exitCode}${details ? `\n${details}` : ""}`,
@@ -537,6 +552,7 @@ function parseOutput(stdout: string, stderr: string, exitCode: number): ParsedCl
       ),
       usage: { status: "unknown" },
       failure,
+      termination,
     };
   }
 
@@ -568,9 +584,11 @@ function parseJsonObject(stdout: string): Record<string, unknown> | undefined {
   return undefined;
 }
 
-function classifyProviderFailure(
+function classifyFailure(
   parsed: Record<string, unknown> | undefined,
   details: string,
+  termination: AgentTermination,
+  exitCode: number,
 ): DriverFailure | undefined {
   const rawStatus = parsed?.api_error_status ?? parsed?.statusCode ?? parsed?.status;
   const statusCode =
@@ -579,49 +597,120 @@ function classifyProviderFailure(
       : typeof rawStatus === "string" && /^\d{3}$/.test(rawStatus)
         ? Number(rawStatus)
         : undefined;
-  const rawMessage = parsed?.result ?? parsed?.error ?? parsed?.message;
-  const message = typeof rawMessage === "string" ? rawMessage : details;
+  const message = readFailureMessage(parsed, details);
   const haystack = `${message} ${details}`.toLocaleLowerCase();
   const isProviderPayload = Boolean(
-    parsed?.is_error === true ||
-      parsed?.terminal_reason === "api_error" ||
-      parsed?.api_error_status !== undefined,
+    parsed?.terminal_reason === "api_error" || parsed?.api_error_status !== undefined,
   );
   const looksLikeProviderFailure =
     isProviderPayload ||
     /insufficient credit|authentication|not logged in|rate limit|too many requests|overloaded|service unavailable|api error/i.test(
       haystack,
     );
-  if (!looksLikeProviderFailure) return undefined;
+  if (looksLikeProviderFailure) {
+    let category: DriverFailure["category"] = "unknown";
+    if (
+      statusCode === 401 ||
+      statusCode === 403 ||
+      /authentication|not logged in|unauthorized|forbidden/i.test(haystack)
+    ) {
+      category = "authentication";
+    } else if (
+      statusCode === 402 ||
+      /insufficient credit|insufficient funds|billing|credit balance/i.test(haystack)
+    ) {
+      category = "insufficient_credit";
+    } else if (statusCode === 429 || /rate limit|too many requests/i.test(haystack)) {
+      category = "rate_limited";
+    } else if (
+      (statusCode !== undefined && statusCode >= 500) ||
+      /overloaded|service unavailable|temporarily unavailable/i.test(haystack)
+    ) {
+      category = "service_unavailable";
+    }
 
-  let category: DriverFailure["category"] = "unknown";
-  if (
-    statusCode === 401 ||
-    statusCode === 403 ||
-    /authentication|not logged in|unauthorized|forbidden/i.test(haystack)
-  ) {
-    category = "authentication";
-  } else if (
-    statusCode === 402 ||
-    /insufficient credit|insufficient funds|billing|credit balance/i.test(haystack)
-  ) {
-    category = "insufficient_credit";
-  } else if (statusCode === 429 || /rate limit|too many requests/i.test(haystack)) {
-    category = "rate_limited";
-  } else if (
-    (statusCode !== undefined && statusCode >= 500) ||
-    /overloaded|service unavailable|temporarily unavailable/i.test(haystack)
-  ) {
-    category = "service_unavailable";
+    return {
+      ...termination,
+      kind: "provider_error",
+      category,
+      statusCode,
+      message: limitText(message || "Claude provider request failed", 500),
+      retryable: category === "rate_limited" || category === "service_unavailable",
+    };
   }
 
+  const structuredFailure = Boolean(
+    termination.endType?.startsWith("error_") ||
+      termination.isError === true ||
+      (termination.terminalReason && termination.terminalReason !== "completed"),
+  );
+  if (!structuredFailure && exitCode === 0) return undefined;
+
   return {
-    kind: "provider_error",
-    category,
-    statusCode,
-    message: limitText(message || "Claude provider request failed", 500),
-    retryable: false,
+    ...termination,
+    kind: "process_error",
+    message: limitText(message || `Claude exited with code ${exitCode}`, 500),
+    retryable: parsed === undefined,
   };
+}
+
+function isStructuredCompletedResult(parsed: Record<string, unknown>): boolean {
+  return (
+    parsed.type === "result" &&
+    parsed.subtype === "success" &&
+    parsed.terminal_reason === "completed"
+  );
+}
+
+function readTermination(
+  parsed: Record<string, unknown> | undefined,
+  exitCode: number,
+): AgentTermination {
+  return {
+    cliVersion: getClaudeVersion(),
+    endType: readString(parsed?.subtype),
+    terminalReason: readString(parsed?.terminal_reason),
+    stopReason: readString(parsed?.stop_reason),
+    isError: typeof parsed?.is_error === "boolean" ? parsed.is_error : undefined,
+    exitCode,
+  };
+}
+
+function getClaudeVersion(): string | undefined {
+  if (cachedClaudeVersion !== undefined) return cachedClaudeVersion ?? undefined;
+  try {
+    const command = process.platform === "win32" ? (process.env.ComSpec ?? "cmd.exe") : "claude";
+    const args =
+      process.platform === "win32" ? ["/d", "/s", "/c", "claude --version"] : ["--version"];
+    const result = spawnSync(command, args, {
+      encoding: "utf-8",
+      shell: false,
+      timeout: 5000,
+      windowsHide: true,
+    });
+    const version = `${result.stdout ?? ""}`.trim().split(/\r?\n/, 1)[0]?.trim();
+    cachedClaudeVersion = version || null;
+  } catch {
+    cachedClaudeVersion = null;
+  }
+  return cachedClaudeVersion ?? undefined;
+}
+
+function readFailureMessage(parsed: Record<string, unknown> | undefined, details: string): string {
+  for (const value of [parsed?.result, parsed?.error, parsed?.message]) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  if (Array.isArray(parsed?.errors)) {
+    const errors = parsed.errors.filter(
+      (value): value is string => typeof value === "string" && Boolean(value.trim()),
+    );
+    if (errors.length > 0) return errors.join("\n");
+  }
+  return details;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
 function appendLimited(current: string, addition: string, limit: number): string {

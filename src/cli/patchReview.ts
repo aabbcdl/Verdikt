@@ -13,6 +13,7 @@ export interface PatchFileReview {
 export interface PatchReview {
   available: boolean;
   reason?: string;
+  repoPath?: string;
   files: PatchFileReview[];
   patchText: string;
   warnings: string[];
@@ -56,6 +57,8 @@ export async function readPatchReview(stateDirInput: string, runId: string): Pro
   const files = parsePatchFiles(patchTextRaw);
   const warnings = buildPatchWarnings(files, summary);
   const risk = buildPatchRisk(files, summary, warnings);
+  const repoPath =
+    isRecord(summary) && typeof summary.repoPath === "string" ? summary.repoPath : undefined;
   const truncated = patchTextRaw.length > MAX_PATCH_CHARS;
   const patchText = truncated
     ? `${patchTextRaw.slice(0, MAX_PATCH_CHARS)}\n\n... patch truncated for display ...`
@@ -63,6 +66,7 @@ export async function readPatchReview(stateDirInput: string, runId: string): Pro
 
   return {
     available: true,
+    repoPath,
     files,
     patchText,
     warnings,

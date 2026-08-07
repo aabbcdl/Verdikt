@@ -68,7 +68,7 @@ export function stageLimitFailure(task: TaskSpec, runtime: StageRuntimeState): s
     return `Stage ${stage.id} reached its iteration limit (${stage.maxIterations})`;
   }
   if (stage.maxBudgetUsd != null && runtime.stageCostUsd >= stage.maxBudgetUsd) {
-    return `Stage ${stage.id} reached its budget limit ($${stage.maxBudgetUsd})`;
+    return `Stage ${stage.id} reached its cost stop target ($${stage.maxBudgetUsd})`;
   }
   return null;
 }

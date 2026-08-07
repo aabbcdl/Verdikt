@@ -163,6 +163,35 @@
     .app { width: min(100% - 20px, 1120px); padding-top: 12px; }
     .panel { padding: 17px; }
     .metrics-grid, .environment-grid { grid-template-columns: 1fr 1fr; }
+    #task-table thead { display: none; }
+    #task-table, #task-table tbody, #task-table tr, #task-table td { display: block; width: 100%; }
+    #task-table tr {
+      margin-bottom: 12px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+    }
+    #task-table td {
+      display: grid;
+      grid-template-columns: 88px minmax(0, 1fr);
+      gap: 8px;
+      min-width: 0;
+      padding: 5px 0;
+      border: 0;
+      overflow-wrap: break-word;
+      word-break: normal;
+    }
+    #task-table td::before {
+      content: attr(data-label);
+      color: var(--text-dim);
+      font-size: 12px;
+    }
+    #task-table td:first-child {
+      padding-top: 0;
+      font-size: 15px;
+      font-weight: 750;
+    }
   }
   @media (max-width: 460px) {
     .brand-mark { display: none; }
@@ -283,19 +312,19 @@ function render(data, basePath) {
       ? `<span class="badge badge-risk">${escapeHtml(riskLabel(semanticRisk))}</span>`
       : '';
     return `<tr>
-      <td><strong>${escapeHtml(task.taskId)}</strong></td>
-      <td><span class="badge badge-category">${escapeHtml(task.category)}</span></td>
-      <td>${escapeHtml(expectedLabel(task.expectedOutcome))}</td>
-      <td><span class="badge badge-${actualBadge(actualStatus)}">${escapeHtml(statusLabel(actualStatus))}</span></td>
-      <td><span class="badge badge-${matched ? 'passed' : 'failed'}">${matched ? '符合' : '不符合'}</span></td>
-      <td>${Array.isArray(task.attempts) ? task.attempts.length : 1}</td>
-      <td>${pct(task.passRate ?? (actualStatus === 'passed' ? 1 : 0))}</td>
-      <td>${fmtDuration(task.medianDurationMs ?? task.durationMs)}</td>
-      <td>${fmtDuration(task.worstDurationMs ?? task.durationMs)}</td>
-      <td>${fmtDuration(task.durationStdDevMs)}</td>
-      <td>${formatCost({ totalCostUsd: safeNumber(task.totalCostUsd, task.costUsd), usageStatus: task.usageStatus || 'complete' }, 2)}</td>
-      <td>${task.flaky ? '<span class="flaky">不稳定</span>' : '稳定'}${riskBadge ? '<br>' + riskBadge : ''}</td>
-      <td>${escapeHtml(statusLabel(task.stopReason), '-')}</td>
+      <td data-label="任务"><strong>${escapeHtml(task.taskId)}</strong></td>
+      <td data-label="类别"><span class="badge badge-category">${escapeHtml(task.category)}</span></td>
+      <td data-label="预期">${escapeHtml(expectedLabel(task.expectedOutcome))}</td>
+      <td data-label="实际"><span class="badge badge-${actualBadge(actualStatus)}">${escapeHtml(statusLabel(actualStatus))}</span></td>
+      <td data-label="是否符合"><span class="badge badge-${matched ? 'passed' : 'failed'}">${matched ? '符合' : '不符合'}</span></td>
+      <td data-label="尝试">${Array.isArray(task.attempts) ? task.attempts.length : 1}</td>
+      <td data-label="通过率">${pct(task.passRate ?? (actualStatus === 'passed' ? 1 : 0))}</td>
+      <td data-label="中位耗时">${fmtDuration(task.medianDurationMs ?? task.durationMs)}</td>
+      <td data-label="最慢耗时">${fmtDuration(task.worstDurationMs ?? task.durationMs)}</td>
+      <td data-label="波动">${fmtDuration(task.durationStdDevMs)}</td>
+      <td data-label="总花费">${formatCost({ totalCostUsd: safeNumber(task.totalCostUsd, task.costUsd), usageStatus: task.usageStatus || 'complete' }, 2)}</td>
+      <td data-label="稳定性">${task.flaky ? '<span class="flaky">不稳定</span>' : '稳定'}${riskBadge ? '<br>' + riskBadge : ''}</td>
+      <td data-label="结束原因">${escapeHtml(statusLabel(task.stopReason), '-')}</td>
     </tr>`;
   }).join('') : '<tr><td colspan="13" class="empty">没有任务结果</td></tr>';
 
@@ -356,7 +385,7 @@ function statusLabel(status) {
     interrupted: '已中断',
     provider_error: '服务请求未完成',
     max_iterations: '达到轮数上限',
-    budget_exceeded: '预算已用完',
+    budget_exceeded: '达到费用停止目标',
     no_progress: '没有进展',
     stage_failed: '阶段未通过',
   };

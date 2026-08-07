@@ -10,6 +10,7 @@
   "files": [
     "dist/",
     "apps/ui/",
+    "assets/demo-project/",
     "scripts/",
     "README.md",
     "USAGE_GUIDE.md",
@@ -35,6 +36,8 @@
     "stress": "tsx src/index.ts stress",
     "stress:ci": "tsx src/index.ts stress --iterations=5 --concurrency=2 --http-requests=50 --http-concurrency=10 --max-p95-ms=2000",
     "vscode:compile": "pnpm --dir apps/vscode compile",
+    "release:connected": "tsx src/release/connectedTask.ts",
+    "release:check": "pnpm quality && pnpm release:connected",
     "app": "pnpm build && node dist/index.js app",
     "app:no-open": "pnpm build && node dist/index.js app --no-open",
     "demo": "tsx src/index.ts run --task examples/demo.task.json"

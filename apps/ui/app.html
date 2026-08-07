@@ -94,9 +94,11 @@
     line-height: 1.45;
   }
 
-  input:focus, textarea:focus, select:focus {
-    outline: none;
-    border-color: var(--blue);
+  input:focus, textarea:focus, select:focus { border-color: var(--focus); }
+  input:focus-visible, textarea:focus-visible, select:focus-visible,
+  button:focus-visible, a:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
   }
 
   .hint {
@@ -125,7 +127,7 @@
     justify-content: center;
     min-height: 38px;
     padding: 9px 14px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--control-border);
     border-radius: 6px;
     background: var(--surface-2);
     color: var(--text);
@@ -211,11 +213,11 @@
     font-weight: 700;
   }
 
-  .status-idle { background: rgba(139, 148, 158, 0.15); color: var(--text-dim); }
-  .status-running { background: rgba(88, 166, 255, 0.15); color: var(--blue); }
-  .status-cancelling { background: rgba(210, 153, 34, 0.15); color: var(--yellow); }
-  .status-passed { background: rgba(63, 185, 80, 0.15); color: var(--green); }
-  .status-failed { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+  .status-idle { background: rgba(139, 148, 158, 0.15); color: #4f5b70; }
+  .status-running { background: rgba(88, 166, 255, 0.15); color: #174ea6; }
+  .status-cancelling { background: rgba(210, 153, 34, 0.15); color: #7a4300; }
+  .status-passed { background: rgba(63, 185, 80, 0.15); color: #0b5a39; }
+  .status-failed { background: rgba(248, 81, 73, 0.15); color: #a11b16; }
 
 
   .progress-bar {
@@ -400,6 +402,17 @@
     gap: 6px;
     margin-bottom: 10px;
   }
+
+  .patch-meta {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 8px;
+    margin: 6px 0;
+    font-size: 12px;
+  }
+
+  .patch-meta > span { color: var(--text-dim); }
+  .patch-meta > strong { min-width: 0; overflow-wrap: anywhere; }
 
   .file-chip {
     padding: 4px 7px;
@@ -680,6 +693,8 @@
     --surface: #ffffff;
     --surface-2: #f7f9fc;
     --border: #dce3ec;
+    --control-border: #7e8b9d;
+    --focus: #174ea6;
     --text: #172033;
     --text-dim: #647086;
     --text-bright: #101828;
@@ -708,12 +723,13 @@
   .panel-heading h2 { margin-bottom:5px; font-size:22px; }
   .panel-heading p { margin:0; color:var(--text-dim); line-height:1.5; }
   .task-mode-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px; }
-  .mode-card { display:block; padding:15px; border:1px solid var(--border); border-radius:12px; background:var(--surface-2); cursor:pointer; }
+  .mode-card { display:block; padding:15px; border:1px solid var(--control-border); border-radius:12px; background:var(--surface-2); cursor:pointer; }
+  .mode-card:focus-within { outline:3px solid var(--focus); outline-offset:2px; }
   .mode-card:has(input:checked) { border-color:var(--blue); background:#edf4ff; box-shadow:0 0 0 2px rgba(36,107,253,.08); }
   .mode-card input { width:auto; margin-right:8px; }
   .mode-card strong { color:var(--text-bright); }
   .mode-card span { display:block; margin:7px 0 0 24px; color:var(--text-dim); font-size:12px; line-height:1.45; }
-  input, textarea, select { background:#fff; color:var(--text); border-color:var(--border); border-radius:9px; min-height:44px; }
+  input, textarea, select { background:#fff; color:var(--text); border-color:var(--control-border); border-radius:9px; min-height:44px; }
   textarea { min-height:116px; }
   .form-row { margin-bottom:18px; }
   label, .form-label { color:#354159; font-weight:650; }
@@ -952,7 +968,7 @@
             <div class="form-row"><label for="stages">分阶段任务</label><textarea id="stages" placeholder="每行一个阶段，例如：诊断: 找出失败原因"></textarea></div>
             <div class="form-grid">
               <div class="form-row"><label for="maxIterations">最多轮数</label><input type="number" id="maxIterations" value="5" min="1" max="20"></div>
-              <div class="form-row"><label for="maxBudget">预算上限 USD</label><input type="number" id="maxBudget" value="5" min="0.5" max="50" step="0.5"></div>
+              <div class="form-row"><label for="maxBudget">费用停止目标 USD</label><input type="number" id="maxBudget" value="5" min="0.5" max="50" step="0.5" aria-describedby="maxBudgetHint"><p class="hint" id="maxBudgetHint">费用数据完整时，达到目标后停止。费用未知或不完整时只能提醒，实际费用可能超过目标。</p></div>
             </div>
             <div class="form-grid">
               <div class="form-row"><label for="allowTestChanges">允许改测试</label><select id="allowTestChanges"><option value="false" selected>不允许</option><option value="true">允许</option></select></div>
@@ -1092,8 +1108,8 @@
           </div>
           <div class="advice-box" id="adviceBox"><div class="advice-title">等待运行结果</div><div>任务结束后，这里会给出下一步建议。</div></div>
           <div class="action-row">
-            <button class="btn btn-primary" id="applyBtn" type="button" onclick="applyPatch()" disabled>应用修改</button>
-            <button class="btn" id="patchBtn" type="button" onclick="loadPatchReview()" disabled>查看修改</button>
+            <button class="btn btn-primary" id="patchBtn" type="button" onclick="openPatchReview()" disabled>查看修改</button>
+            <button class="btn" id="applyBtn" type="button" onclick="applyPatch()" disabled>应用修改</button>
             <button class="btn" id="viewBtn" type="button" onclick="viewRun()" disabled>查看完整结果</button>
             <button class="btn" id="retryBtn" type="button" onclick="retryCurrentRun()" disabled>继续处理</button>
             <button class="btn btn-danger" id="discardBtn" type="button" onclick="discardRun()" disabled>丢弃</button>
@@ -1113,7 +1129,7 @@
             <div class="checkpoint-row"><label for="checkpointIteration">轮次</label><input id="checkpointIteration" type="number" min="1" step="1" placeholder="例如 2"><button class="btn" type="button" onclick="rewindCurrentRun()">回到这一轮</button><button class="btn" type="button" onclick="forkCurrentRun()">从这一轮新建尝试</button></div>
             <div class="hint" id="steeringStatus">补充说明会在下一轮开始时生效。</div>
           </div></details>
-          <details class="detail-panel"><summary>补丁、时间线与轮次详情</summary><div class="detail-content">
+          <details class="detail-panel" id="patchDetails"><summary>补丁、时间线与轮次详情</summary><div class="detail-content">
             <div id="patchSection"><h3>补丁审查</h3><div id="patchSummary" class="hint">任务通过后可以查看改动。</div><div class="patch-review" id="patchReview">暂无补丁。</div></div>
             <h3>完整时间线</h3><div id="timelineList" class="timeline-list"><div class="hint">暂无时间线。</div></div>
             <h3>轮次详情</h3><div id="agentTimeline" class="hint">暂无轮次记录。</div>
@@ -1128,13 +1144,13 @@
         <div class="workbench-toolbar">
           <div class="filter-field"><label class="sr-only" for="workbenchSearch">搜索历史记录</label><input type="search" id="workbenchSearch" placeholder="&#25628;&#32034;&#20219;&#21153;&#12289;&#39033;&#30446;&#12289;&#26631;&#31614;" oninput="resetHistoryLimit()"></div>
           <div class="filter-field"><label class="sr-only" for="workbenchStatus">按运行状态筛选</label><select id="workbenchStatus" onchange="resetHistoryLimit()"><option value="all" selected>&#20840;&#37096;&#35760;&#24405;</option><option value="failed">&#26410;&#23436;&#25104;</option><option value="passed">&#24050;&#36890;&#36807;</option><option value="pendingPatch">&#24453;&#24212;&#29992;&#20462;&#25913;</option><option value="archived">&#24050;&#24402;&#26723;</option></select></div>
-          <div class="filter-field"><label class="sr-only" for="workbenchSource">按任务来源筛选</label><select id="workbenchSource" onchange="resetHistoryLimit()"><option value="work" selected>&#24037;&#20316;&#35760;&#24405;</option><option value="user">&#26222;&#36890;&#20219;&#21153;</option><option value="demo">&#31034;&#20363;</option><option value="benchmark">Benchmark</option><option value="test">&#27979;&#35797;</option><option value="unknown">&#26469;&#28304;&#26410;&#30693;</option><option value="all">&#20840;&#37096;&#26469;&#28304;</option></select></div>
+          <div class="filter-field"><label class="sr-only" for="workbenchSource">按任务来源筛选</label><select id="workbenchSource" onchange="resetHistoryLimit()"><option value="work" selected>正式任务</option><option value="user">全部普通任务</option><option value="demo">&#31034;&#20363;</option><option value="benchmark">Benchmark</option><option value="test">&#27979;&#35797;</option><option value="unknown">&#26469;&#28304;&#26410;&#30693;</option><option value="all">&#20840;&#37096;&#26469;&#28304;</option></select></div>
           <div class="filter-field"><label class="sr-only" for="workbenchRepo">按项目筛选</label><select id="workbenchRepo" onchange="resetHistoryLimit()"><option value="">&#20840;&#37096;&#39033;&#30446;</option></select></div>
         </div>
         <div class="hint" id="workbenchCount" role="status" aria-live="polite" aria-atomic="true">&#27491;&#22312;&#35745;&#31639;&#35760;&#24405;&#25968;&#37327;...</div>
         <div class="workbench-list" id="workbenchList">&#27491;&#22312;&#21152;&#36733;&#36816;&#34892;&#35760;&#24405;...</div>
         <div class="action-row"><button class="btn" id="loadMoreBtn" type="button" onclick="loadMoreRuns()" hidden>&#21152;&#36733;&#26356;&#22810;</button></div>
-        <details class="advanced"><summary>项目统计</summary><div class="advanced-content"><div class="stats-grid" id="projectStats">正在加载统计...</div></div></details>
+        <details class="advanced"><summary>正式任务统计</summary><div class="advanced-content"><div class="stats-grid" id="projectStats">正在加载正式任务统计...</div></div></details>
       </div>
     </section>
   </main>
@@ -1155,6 +1171,8 @@ let workbenchInitialized = false;
 let historyLimit = 50;
 let currentTaskSource = "user";
 let currentResultResumable = false;
+let currentResult = null;
+let currentPatchReview = null;
 let dismissedStallAt = null;
 let currentStallDetectedAt = null;
 let providerState = null;
@@ -1163,7 +1181,6 @@ let doctorState = null;
 let lastProjectInspection = null;
 let lastInspectedRepoPath = '';
 let acceptanceAutoManaged = true;
-const demoRepoPath = '__VERDIKT_DEMO_REPO_PATH__';
 const verdiktSessionToken = '__VERDIKT_SESSION_TOKEN__';
 const verdiktNativeFetch = window.fetch.bind(window);
 window.fetch = (input, init = {}) => {
@@ -1280,23 +1297,37 @@ function setRunningControls(isRunning) {
 }
 
 function setResultControls(result) {
+  currentResult = result || null;
   const hasRun = Boolean(currentRunId);
   const passed = Boolean(result && result.passed);
   const reviewOnly = Boolean(result && result.reviewOnly);
   const resumable = Boolean(result && result.resumable);
   const actionTaken = Boolean(result && (result.applyStatus === 'applied' || result.applyStatus === 'discarded'));
   const terminalResult = Boolean(result && (typeof result.passed === 'boolean' || result.stopReason || result.error));
+  const patchReady = Boolean(
+    currentPatchReview &&
+    currentPatchReview.available === true &&
+    Array.isArray(currentPatchReview.files) &&
+    currentPatchReview.files.length > 0,
+  );
   currentResultResumable = resumable;
   el('applyBtn').hidden = reviewOnly;
   el('patchBtn').hidden = reviewOnly;
   el('discardBtn').hidden = reviewOnly;
-  el('applyBtn').disabled = reviewOnly || !passed || actionTaken;
+  el('applyBtn').disabled = reviewOnly || !passed || actionTaken || !patchReady;
   el('viewBtn').disabled = !hasRun;
   el('patchBtn').disabled = reviewOnly || !passed;
   if (el('evidenceBtn')) el('evidenceBtn').disabled = !hasRun;
   el('retryBtn').textContent = resumable ? '\u7ee7\u7eed\u8fd0\u884c' : '\u91cd\u65b0\u8fd0\u884c';
   el('retryBtn').disabled = !hasRun || passed || !terminalResult;
   el('discardBtn').disabled = !hasRun || !terminalResult || actionTaken;
+  if (el('noteBtn')) el('noteBtn').disabled = Boolean(terminalResult && !resumable);
+  if (el('nextIterationNote')) el('nextIterationNote').disabled = Boolean(terminalResult && !resumable);
+  if (el('steeringStatus')) {
+    el('steeringStatus').textContent = terminalResult && !resumable
+      ? '这次运行已经结束，无法加入下一轮；如需继续，请重新运行。'
+      : '补充说明会在下一轮开始时生效。';
+  }
 }
 
 function getSteps() {
@@ -1366,6 +1397,7 @@ async function chooseProjectFolder() {
     const data = await resp.json();
     if (!resp.ok || data.error) throw new Error(data.error || '无法打开文件夹选择器');
     if (data.selectedPath) {
+      markTaskAsUserEdited();
       el('repoPath').value = data.selectedPath;
       await inspectCurrentProject(true);
     }
@@ -1396,6 +1428,7 @@ async function inspectCurrentProject(applyRecommendations = false) {
     });
     const data = await resp.json();
     if (!resp.ok || data.error) throw new Error(data.error || '项目检查失败');
+    clearTaskFeedback();
     lastProjectInspection = data;
     lastInspectedRepoPath = data.repoPath || repoPath;
     if (data.repoPath) el('repoPath').value = data.repoPath;
@@ -1445,7 +1478,7 @@ function addStep() {
   acceptanceAutoManaged = false;
   updateStepLabels();
   renderAcceptanceSummary();
-  clearTaskFeedback();
+  markTaskAsUserEdited();
   row.querySelector('.step-id')?.focus();
 }
 
@@ -1456,7 +1489,7 @@ function removeStep(button) {
     acceptanceAutoManaged = false;
     updateStepLabels();
     renderAcceptanceSummary();
-    clearTaskFeedback();
+    markTaskAsUserEdited();
   }
 }
 
@@ -1526,34 +1559,52 @@ function parseStages(text) {
   }).filter(Boolean);
 }
 
-function fillDemoTask() {
+async function fillDemoTask() {
   clearTaskFeedback();
-  el('repoPath').value = demoRepoPath;
-  el('goal').value = 'Fix the sum function so it correctly adds two numbers instead of subtracting them.';
-  el('stages').value = '';
-  el('maxIterations').value = '2';
-  el('maxBudget').value = '1';
-  el('allowTestChanges').value = 'false';
-  el('maxRisk').value = 'low';
-  if (el('planningMode')) el('planningMode').value = 'off';
-  currentTaskSource = 'demo';
-  lastInspectedRepoPath = demoRepoPath;
-  acceptanceAutoManaged = false;
+  const button = el('demoBtn');
+  if (button) button.disabled = true;
+  if (el('logOutput')) el('logOutput').textContent = '正在准备示例项目...';
+  try {
+    const resp = await fetch('/api/demo/reset', { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok || data.error || !data.repoPath) throw new Error(formatApiError(data, '示例项目准备失败'));
 
-  const rows = document.querySelectorAll('.step-row');
-  if (rows.length > 0) {
-    rows[0].querySelector('.step-id').value = 'test';
-    rows[0].querySelector('.step-cmd').value = 'npx';
-    rows[0].querySelector('.step-args').value = '["vitest","run"]';
+    const inspection = data.inspection || {};
+    el('repoPath').value = data.repoPath;
+    el('goal').value = 'Fix the sum function so it correctly adds two numbers instead of subtracting them.';
+    el('stages').value = '';
+    el('maxIterations').value = '2';
+    el('maxBudget').value = '1';
+    el('allowTestChanges').value = 'false';
+    el('maxRisk').value = 'low';
+    if (el('planningMode')) el('planningMode').value = 'off';
+    currentTaskSource = 'demo';
+    lastProjectInspection = inspection;
+    lastInspectedRepoPath = inspection.repoPath || data.repoPath;
+    acceptanceAutoManaged = true;
+
+    const recommendation = Array.isArray(inspection.recommendedSteps) ? inspection.recommendedSteps[0] : null;
+    const rows = document.querySelectorAll('.step-row');
+    if (recommendation && rows.length > 0) {
+      rows[0].querySelector('.step-id').value = recommendation.id || 'test';
+      rows[0].querySelector('.step-cmd').value = recommendation.command || 'npm';
+      rows[0].querySelector('.step-args').value = JSON.stringify(recommendation.args || ['test']);
+    }
+    renderProjectInspection(inspection);
+    renderAcceptanceSummary();
+
+    resetResult();
+    setProgressState('idle');
+    el('logOutput').textContent = '示例项目已重新准备并完成检查。预览配置后即可开始；再次点击“填入示例”会恢复初始内容。';
+    setStatus('待运行', 'idle');
+    setResultControls(null);
+    renderAdvice(null);
+  } catch (err) {
+    renderProjectProblem(err.message);
+    if (el('logOutput')) el('logOutput').textContent = '示例项目准备失败：' + err.message;
+  } finally {
+    if (button) button.disabled = false;
   }
-  renderAcceptanceSummary();
-
-  resetResult();
-  setProgressState('idle');
-  el('logOutput').textContent = '示例任务已填好。建议先点“预览配置”确认路径和验收命令，再点“开始执行任务”。运行通过前不会改原项目。';
-  setStatus('待运行', 'idle');
-  setResultControls(null);
-  renderAdvice(null);
 }
 
 function fillTaskForm(task) {
@@ -1664,6 +1715,11 @@ function clearTaskFeedback() {
   showTaskNotice('');
 }
 
+function markTaskAsUserEdited() {
+  currentTaskSource = 'user';
+  clearTaskFeedback();
+}
+
 function showTaskErrors(errors) {
   clearTaskFeedback();
   const safeErrors = Array.isArray(errors) && errors.length
@@ -1734,7 +1790,7 @@ function renderConfigPreview(task) {
     : '不分阶段';
   const executionLimits = task.taskMode === 'review'
     ? '只读审查，不修改文件'
-    : `最多 ${task.maxIterations} 轮，预算上限 $${Number(task.maxBudgetUsd).toFixed(2)}`;
+    : `最多 ${task.maxIterations} 轮，费用停止目标 $${Number(task.maxBudgetUsd).toFixed(2)}`;
 
   content.innerHTML = `
     <div class="config-preview-grid">
@@ -1747,6 +1803,7 @@ function renderConfigPreview(task) {
       <div class="config-preview-item"><span>开始方式</span><strong>${escapeHtml(planningLabels[task.planning.mode] || task.planning.mode)}</strong></div>
       <div class="config-preview-item"><span>阶段</span><strong>${escapeHtml(stageText)}</strong></div>
       <div class="config-preview-item"><span>运行限制</span><strong>${escapeHtml(executionLimits)}</strong></div>
+      <div class="config-preview-section"><strong>费用说明</strong><div>费用数据完整时，达到目标后停止。费用未知或不完整时只能提醒，实际费用可能超过目标。</div></div>
       <div class="config-preview-item"><span>风险与测试</span><strong>风险门槛：${escapeHtml(riskLabels[task.semantic.maxRisk] || task.semantic.maxRisk)}；${task.integrity.allowTestChanges ? '允许修改测试' : '不允许修改测试'}</strong></div>
       <div class="config-preview-item"><span>完成提醒</span><strong>${notification}</strong></div>
     </div>
@@ -2086,21 +2143,49 @@ function fillResult(result) {
   el('resultCost').textContent = formatUsageCost(result, 2);
   el('resultDuration').textContent = formatDuration(result.totalDurationMs ?? 0);
   el('resultReason').textContent = result.stopReason ? statusLabel(result.stopReason) : '-';
+  if (result && (typeof result.passed === 'boolean' || result.stopReason || result.error)) {
+    const duration = formatDuration(result.totalDurationMs ?? 0);
+    if (el('currentRunTimer')) el('currentRunTimer').textContent = duration === '-' ? '不到 1 秒' : duration;
+    if (el('currentStage')) el('currentStage').textContent = result.passed ? '已完成' : terminalPhaseLabel(result.currentPhase);
+    if (el('stageAttempt')) {
+      const iterations = Number(result.iterations);
+      el('stageAttempt').textContent = Number.isFinite(iterations) && iterations > 0 ? `${iterations} 轮` : '无轮次记录';
+    }
+    if (el('heartbeatAt')) el('heartbeatAt').textContent = '已结束';
+  }
+}
+
+function terminalPhaseLabel(phase) {
+  const labels = {
+    planning: '规划已结束',
+    reviewing: '审查已结束',
+    executor: '执行已结束',
+    judges: '验收已结束',
+    verifier: '审查已结束',
+    finalizing: '收尾已结束',
+  };
+  return labels[phase] || '已结束';
 }
 
 function showError(message) {
+  const result = { passed: false, stopReason: 'error', iterations: 0, totalDurationMs: 0, totalCostUsd: 0, usageStatus: 'unknown', advice: { title: '运行失败', summary: message, nextActions: ['检查环境或任务配置后重新运行。'], evidence: [] } };
   setRunningControls(false);
   setStatus('运行失败', 'failed');
   setProgressState('done');
-  el('resultReason').textContent = 'error';
   appendLog('运行失败: ' + message);
-  setResultControls({ passed: false, stopReason: 'error' });
-  renderAdvice({ title: '运行失败', summary: message, nextActions: ['检查环境或任务配置后重新运行。'], evidence: [] });
+  fillResult(result);
+  setResultControls(result);
+  renderResultSummary(result);
+  if (el('resultShell')) el('resultShell').hidden = false;
+  if (el('runningActions')) el('runningActions').hidden = true;
+  renderAdvice(result.advice);
   refreshWorkbench();
 }
 
 function resetResult() {
   hideApproval();
+  currentResult = null;
+  currentPatchReview = null;
   if (el('evidenceStatus')) {
     el('evidenceStatus').textContent = '';
     el('evidenceStatus').className = 'evidence-status';
@@ -2112,6 +2197,9 @@ function resetResult() {
   if (el('resultShell')) el('resultShell').hidden = true;
   if (el('reviewReport')) { el('reviewReport').hidden = true; el('reviewReport').innerHTML = ''; }
   for (const id of ['applyBtn','patchBtn','discardBtn']) if (el(id)) el(id).hidden = false;
+  if (el('noteBtn')) el('noteBtn').disabled = false;
+  if (el('nextIterationNote')) el('nextIterationNote').disabled = false;
+  if (el('steeringStatus')) el('steeringStatus').textContent = '补充说明会在下一轮开始时生效。';
   applyReviewLayout(false);
 }
 
@@ -2125,7 +2213,23 @@ function formatDuration(ms) {
 
 async function applyPatch() {
   if (!currentRunId) return;
-  if (!confirm('确认把这次修复应用到原项目吗？')) return;
+  const review = currentPatchReview;
+  if (!review || review.available !== true || !Array.isArray(review.files) || review.files.length === 0) {
+    if (el('patchSummary')) el('patchSummary').textContent = '补丁尚未准备好，先查看修改并确认有文件改动。';
+    return;
+  }
+  const project = review.repoPath || el('repoPath')?.value.trim() || '当前项目';
+  const patchState = review.truncated ? '只显示了部分内容' : '完整补丁';
+  const risk = review.risk && review.risk.verdict ? review.risk.verdict : '尚未完成风险评估';
+  const prompt = [
+    '确认应用这次修改？',
+    `项目：${project}`,
+    `文件：${review.files.length} 个`,
+    `风险：${risk}`,
+    `补丁：${patchState}`,
+    '应用后会把修改写入原项目。',
+  ].join('\n');
+  if (!confirm(prompt)) return;
 
   try {
     const resp = await fetch('/api/apply/' + encodeURIComponent(currentRunId), { method: 'POST' });
@@ -2278,7 +2382,7 @@ function renderRunItem(run) {
     const displayStatus = canResume && stopReason === 'provider_error' ? 'provider_error' : (run.status || stopReason || 'unknown');
     const status = escapeHtml(statusLabel(displayStatus));
     const title = escapeHtml(run.taskId || run.runId);
-    const goal = escapeHtml(run.goal || stopReason || '');
+    const goal = escapeHtml(run.goal || (stopReason ? statusLabel(stopReason) : ''));
     const cost = ' \u00b7 ' + formatUsageCost(run, 2);
     const source = ' \u00b7 ' + escapeHtml(sourceLabel(run.runSource || 'unknown'));
     const queue = run.queuePosition ? ' \u00b7 \u6392\u961f ' + run.queuePosition : '';
@@ -2322,8 +2426,7 @@ function renderWorkbench(data) {
   const repoFilter = el('workbenchRepo') ? el('workbenchRepo').value : '';
   const filtered = mergedRaw.filter((run) => {
     const source = run.runSource || 'unknown';
-    if (sourceFilter === 'work' && ['test', 'benchmark'].includes(source)) return false;
-    if (!['work', 'all'].includes(sourceFilter) && source !== sourceFilter) return false;
+    if (!matchesWorkbenchSource(run, sourceFilter)) return false;
     if (repoFilter && run.repoPath !== repoFilter) return false;
     if (statusFilter === 'active' && run.archived) return false;
     if (statusFilter === 'archived' && !run.archived) return false;
@@ -2340,13 +2443,16 @@ function renderWorkbench(data) {
   if (el('workbenchCount')) el('workbenchCount').textContent = `\u5df2\u663e\u793a ${merged.length} / ${filtered.length} \u6761\u8bb0\u5f55`;
   if (el('loadMoreBtn')) el('loadMoreBtn').hidden = merged.length >= filtered.length;
 
-  const hasActiveLive = live.some((run) => ['queued', 'running', 'waiting_approval', 'cancelling', 'resumable'].includes(run.status));
+  const activeLive = live.filter((run) =>
+    ['queued', 'running', 'waiting_approval', 'cancelling', 'resumable'].includes(run.status)
+      && matchesWorkbenchSource(run, sourceFilter),
+  );
+  const hasActiveLive = activeLive.length > 0;
   if (merged.length === 0 && !hasActiveLive) {
     el('workbenchList').textContent = '\u6ca1\u6709\u7b26\u5408\u6761\u4ef6\u7684\u8fd0\u884c\u8bb0\u5f55\u3002';
     return;
   }
 
-  const activeLive = live.filter((run) => ['queued', 'running', 'waiting_approval', 'cancelling', 'resumable'].includes(run.status));
   const sections = [];
   if (activeLive.length) {
     sections.push('<div class="run-group-title">进行中 / 待处理</div>' + activeLive.map(renderRunItem).join(''));
@@ -2354,6 +2460,13 @@ function renderWorkbench(data) {
   if (activeLive.length && merged.length) sections.push('<div class="run-group-title">历史</div>');
   sections.push(merged.map(renderRunItem).join(''));
   el('workbenchList').innerHTML = sections.join('');
+}
+
+function matchesWorkbenchSource(run, sourceFilter) {
+  const source = run.runSource || 'unknown';
+  if (sourceFilter === 'work') return source === 'user' && !run.archived;
+  if (sourceFilter === 'all') return true;
+  return source === sourceFilter;
 }
 
 function resetHistoryLimit() {
@@ -2434,6 +2547,7 @@ async function editRunTask(runId) {
 
 function selectRun(runId) {
   currentRunId = runId;
+  currentPatchReview = null;
   rememberCurrentRun(currentRunId);
   switchView('current');
   showCurrentContent();
@@ -2468,6 +2582,9 @@ async function startSavedRun(url) {
     switchView('current');
     showCurrentContent();
     resetTimeline(currentRunId);
+    resetResult();
+    setProgressState('active');
+    if (el('runningActions')) el('runningActions').hidden = false;
     el('logOutput').textContent = '任务已加入队列: ' + currentRunId + '\n';
     setRunningControls(true);
     setResultControls(null);
@@ -2540,6 +2657,10 @@ async function decideApprovalForRun(runId, decision, scope = 'once') {
 async function queueNextIterationNote() {
   if (!currentRunId) {
     alert('请先选择或开始一个任务。');
+    return;
+  }
+  if (el('resultShell') && !el('resultShell').hidden && !currentResultResumable) {
+    if (el('steeringStatus')) el('steeringStatus').textContent = '这次运行已经结束，无法加入下一轮；如需继续，请重新运行。';
     return;
   }
   const text = el('nextIterationNote') ? el('nextIterationNote').value.trim() : '';
@@ -2783,14 +2904,19 @@ function riskCategoryLabel(category) {
 
 async function loadPatchReview() {
   if (!currentRunId) return;
+  currentPatchReview = null;
+  setResultControls(currentResult);
   try {
     const resp = await fetch('/api/patch/' + encodeURIComponent(currentRunId));
     const data = await resp.json();
     if (!resp.ok || !data.available) {
-      el('patchSummary').textContent = data.reason || '暂无可审查补丁。';
+      currentPatchReview = data;
+      el('patchSummary').textContent = patchUnavailableLabel(data.reason);
       el('patchReview').textContent = '暂无补丁。';
+      setResultControls(currentResult);
       return;
     }
+    currentPatchReview = data;
     const files = Array.isArray(data.files) ? data.files : [];
     const warnings = Array.isArray(data.warnings) ? data.warnings : [];
     const risk = data.risk || {};
@@ -2800,13 +2926,35 @@ async function loadPatchReview() {
         ${Array.isArray(risk.reasons) && risk.reasons.length ? `<ul class="advice-list">${risk.reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join('')}</ul>` : ''}
         ${Array.isArray(risk.applyChecklist) && risk.applyChecklist.length ? `<ul class="advice-list">${risk.applyChecklist.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : ''}
       </div>
+      <div class="patch-meta"><span>补丁状态</span><strong>${data.truncated ? '内容较长，页面只显示部分' : '可完整查看'}</strong></div>
+      <div class="patch-meta"><span>项目</span><strong>${escapeHtml(data.repoPath || el('repoPath')?.value.trim() || '当前项目')}</strong></div>
+      <div class="patch-meta"><span>文件</span><strong>${files.length} 个</strong></div>
       <div class="file-chip-row">${files.map((file) => `<span class="file-chip">${escapeHtml(file.path)} +${file.additions}/-${file.deletions}</span>`).join('')}</div>
       ${warnings.length ? `<ul class="advice-list">${warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join('')}</ul>` : '<span class="hint">未发现额外补丁警告。</span>'}
     `;
     el('patchReview').innerHTML = renderPatchText(data.patchText || '');
+    setResultControls(currentResult);
   } catch (err) {
+    currentPatchReview = { available: false, reason: err.message };
     el('patchSummary').textContent = '补丁读取失败: ' + err.message;
+    setResultControls(currentResult);
   }
+}
+
+async function openPatchReview() {
+  const details = el('patchDetails');
+  if (details) details.open = true;
+  await loadPatchReview();
+  el('patchSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function patchUnavailableLabel(reason) {
+  const labels = {
+    'No final patch is available for this run.': '这次运行没有生成可查看的修改。',
+    'Invalid run ID': '这条运行记录无效，无法读取修改。',
+    'Access denied': '无法读取这次运行的修改。',
+  };
+  return labels[reason] || reason || '暂无可审查补丁。';
 }
 
 function renderPatchText(text) {
@@ -3010,7 +3158,9 @@ async function loadDoctor() {
   el('doctorSummary').textContent = '正在检查本机环境...';
   if (el('settingsDoctorSummary')) el('settingsDoctorSummary').textContent = '正在检查本机环境...';
   try {
-    const resp = await fetch('/api/doctor');
+    const repoPath = el('repoPath')?.value.trim() || '';
+    const doctorUrl = repoPath ? '/api/doctor?repoPath=' + encodeURIComponent(repoPath) : '/api/doctor';
+    const resp = await fetch(doctorUrl);
     const data = await resp.json();
     if (!resp.ok || data.error) throw new Error(formatApiError(data, '环境检查失败'));
     doctorState = data;
@@ -3052,7 +3202,7 @@ async function refreshStats() {
     if (!resp.ok || data.error) throw new Error(formatApiError(data, '\u8bfb\u53d6\u7edf\u8ba1\u5931\u8d25'));
     const totals = data.totals || {};
     el('projectStats').innerHTML = `
-      <div class="stat-mini"><strong>${Number(totals.runs || 0)}</strong><span>\u5f53\u524d\u8bb0\u5f55</span></div>
+      <div class="stat-mini"><strong>${Number(totals.runs || 0)}</strong><span>正式任务数</span></div>
       <div class="stat-mini"><strong>${Number(totals.passRate || 0)}%</strong><span>\u901a\u8fc7\u7387</span></div>
       <div class="stat-mini"><strong>${Number(totals.pendingPatches || 0)}</strong><span>\u5f85\u5e94\u7528\u8865\u4e01</span></div>
       <div class="stat-mini"><strong>${formatStatsCost(totals)}</strong><span>${Number(totals.unknownCostRuns || 0) > 0 ? '\u5df2\u77e5\u82b1\u8d39 \u00b7 ' + Number(totals.unknownCostRuns || 0) + ' \u9879\u4e0d\u5b8c\u6574' : '\u7d2f\u8ba1\u82b1\u8d39'}</span></div>
@@ -3171,8 +3321,8 @@ function statusLabel(status) {
     cancelling: '停止中',
     completed: '已完成',
     passed: '已通过',
-    max_iterations: '到达轮数',
-    budget_exceeded: '预算用完',
+    max_iterations: '达到轮数上限',
+    budget_exceeded: '达到费用停止目标',
     no_progress: '无进展',
     cancelled: '已停止',
     interrupted: '已中断，可继续',
@@ -3206,8 +3356,8 @@ if (el('workbenchList')) {
   updateStepLabels();
   renderAcceptanceSummary();
   const taskForm = el('viewNew');
-  taskForm?.addEventListener('input', clearTaskFeedback);
-  taskForm?.addEventListener('change', clearTaskFeedback);
+  taskForm?.addEventListener('input', markTaskAsUserEdited);
+  taskForm?.addEventListener('change', markTaskAsUserEdited);
   el('repoPath')?.addEventListener?.('input', () => {
     lastProjectInspection = null;
     lastInspectedRepoPath = '';

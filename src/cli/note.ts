@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { getConfig } from "../config.js";
 import { appendRunEvent } from "../trace/events.js";
+import { deriveRunLifecycle } from "../trace/lifecycle.js";
 import { queueRunNote } from "../trace/notes.js";
 import { isPathInside, isValidRunId } from "./localServer.js";
 import { parseArgs } from "./parseArgs.js";
@@ -11,6 +12,12 @@ export async function addRunNote(runId: string, text: string, source = "cli") {
   const runDir = resolve(stateDir, runId);
   if (!isValidRunId(runId) || !isPathInside(stateDir, runDir) || !existsSync(runDir)) {
     throw new Error("Run not found or invalid run ID");
+  }
+  const lifecycle = await deriveRunLifecycle(runDir);
+  if (!lifecycle.resumable) {
+    throw new Error(
+      "This run is already finished; notes can only be added to a run that can continue.",
+    );
   }
   const note = await queueRunNote(runDir, text, source);
   await appendRunEvent(runDir, {

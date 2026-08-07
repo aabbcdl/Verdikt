@@ -10,11 +10,17 @@ const ALLOWED_PACKAGE_FILES = new Set([
 ]);
 
 const ALLOWED_PACKAGE_PREFIXES = ["apps/ui/", "dist/", "scripts/"];
+const DEMO_PACKAGE_FILES = new Set([
+  "assets/demo-project/package.json",
+  "assets/demo-project/src/sum.js",
+  "assets/demo-project/test/sum.test.js",
+]);
 const REQUIRED_PACKAGE_FILES = [
   "dist/index.js",
   "apps/ui/app.html",
   "scripts/start-verdikt-app.ps1",
   "scripts/start-verdikt-app.sh",
+  ...DEMO_PACKAGE_FILES,
 ];
 const TEST_ARTIFACT_PATTERN =
   /(?:^|\/)[^/]+\.(?:test|spec)\.(?:[cm]?js|[cm]?jsx|d\.ts|d\.ts\.map|js\.map)$/;
@@ -39,6 +45,7 @@ export function validatePackageFiles(filePaths: string[]): string[] {
   }
 
   for (const filePath of normalizedFiles.sort()) {
+    if (DEMO_PACKAGE_FILES.has(filePath)) continue;
     if (isTestArtifact(filePath)) {
       findings.push(`Package includes test artifact: ${filePath}`);
       continue;

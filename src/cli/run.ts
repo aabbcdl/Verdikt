@@ -342,7 +342,7 @@ function printDryRun(
   console.log(`Goal:     ${task.goal}`);
   console.log(`Repo:     ${task.repoPath}`);
   console.log(`Max iter: ${task.maxIterations ?? 5}`);
-  console.log(`Budget:   ${task.maxBudgetUsd ? `$${task.maxBudgetUsd}` : "unlimited"}`);
+  console.log(`Cost target: ${task.maxBudgetUsd ? `$${task.maxBudgetUsd}` : "none"}`);
   console.log(`Worktree: ${!options.skipWorktree ? "yes" : "no"}`);
   console.log(`Integrity: ${!options.skipIntegrity ? "yes" : "no"}`);
 

@@ -613,11 +613,16 @@ async function executeLoop(
         stageProgress: stageRuntime,
         evidenceManifestPath: join(runDir, "evidence", "manifest.json"),
         reviewReport,
+        reviewTermination: reviewerResult.termination,
         reviewOnly: true,
       };
       updatePhase("reviewing", "completed");
       recordEvent("review_completed", {
-        data: { verdict: reviewReport.verdict, findings: reviewReport.findings.length },
+        data: {
+          verdict: reviewReport.verdict,
+          findings: reviewReport.findings.length,
+          termination: reviewerResult.termination,
+        },
       });
       await writeSummary(runDir, result);
       await clearRunState(runDir);
@@ -972,6 +977,7 @@ async function executeLoop(
         totalUsage = mergeUsage(totalUsage, execUsage);
         totalCost = totalUsage.costUsd ?? totalCost;
         partialIteration.executorOutput = execResult.text;
+        partialIteration.executorTermination = execResult.termination;
         partialIteration.executorDurationMs = execResult.durationMs;
         partialIteration.executorUsage = execUsage;
         await saveRunState(runDir, {
@@ -997,7 +1003,11 @@ async function executeLoop(
         recordEvent("executor_completed", {
           iteration: i,
           stageId: activeStage?.id,
-          data: { durationMs: execResult.durationMs, usage: execUsage },
+          data: {
+            durationMs: execResult.durationMs,
+            usage: execUsage,
+            termination: execResult.termination,
+          },
         });
       } else {
         execUsage = partialIteration.executorUsage ?? usageFromLegacyCost(undefined);
@@ -1007,6 +1017,7 @@ async function executeLoop(
           durationMs: partialIteration.executorDurationMs ?? 0,
           costUsd: execUsage.costUsd,
           usage: execUsage,
+          termination: partialIteration.executorTermination,
         };
         log("  > Resuming after the completed executor phase.");
       }
@@ -1076,17 +1087,17 @@ async function executeLoop(
         if (!budgetEnforcementWarned && (totalUsage?.status ?? "unknown") !== "complete") {
           budgetEnforcementWarned = true;
           warn(
-            "  ⚠ 花费数据不完整(unknown/partial),预算上限 maxBudgetUsd 无法严格执行,实际花费可能超出限制。",
+            "  ⚠ 费用数据不完整(unknown/partial)，费用停止目标 maxBudgetUsd 不是严格上限，实际费用可能超过目标。",
           );
         }
         const pct = totalCost / task.maxBudgetUsd;
         if (pct >= 1.0) {
           warn(
-            `  Budget exceeded: ${formatCost(totalUsage, 2)} / $${task.maxBudgetUsd.toFixed(2)}`,
+            `  Cost stop target reached: ${formatCost(totalUsage, 2)} / $${task.maxBudgetUsd.toFixed(2)}`,
           );
         } else if (pct >= 0.8) {
           warn(
-            `  Budget warning: ${formatCost(totalUsage, 2)} / $${task.maxBudgetUsd.toFixed(2)} (${(pct * 100).toFixed(0)}%)`,
+            `  Cost stop target warning: ${formatCost(totalUsage, 2)} / $${task.maxBudgetUsd.toFixed(2)} (${(pct * 100).toFixed(0)}%)`,
           );
         }
       }
@@ -1322,10 +1333,10 @@ async function executeLoop(
         // call cannot turn this round into a pass, so skip its cost. When the
         // judge PASSED we still run the verifier: a passing result outranks
         // the budget stop and must not be thrown away.
-        warn("  ⚠ 预算已超出且验收未通过,跳过本轮审查 agent 以避免额外花费。");
+        warn("  ⚠ 已达到费用停止目标且验收未通过，跳过本轮审查 agent 以避免额外花费。");
         verdict = {
           done: false,
-          problems: ["预算已超出,本轮跳过审查 agent。"],
+          problems: ["已达到费用停止目标，本轮跳过审查 agent。"],
           nextInstruction: instruction,
         };
         verifierUsage = usageFromLegacyCost(undefined);
@@ -1354,6 +1365,7 @@ async function executeLoop(
         totalUsage = mergeUsage(totalUsage, verifierUsage);
         totalCost = totalUsage.costUsd ?? totalCost;
         partialIteration.verifierUsage = verifierUsage;
+        partialIteration.verifierTermination = verifierResult.termination;
         if (verifierResult.failure?.kind === "provider_error") {
           return stopForProviderError(verifierResult.failure, "verifier", {
             iteration: i,
@@ -1367,7 +1379,12 @@ async function executeLoop(
         recordEvent("verifier_completed", {
           iteration: i,
           stageId: activeStage?.id,
-          data: { done: verdict.done, problems: verdict.problems, usage: verifierUsage },
+          data: {
+            done: verdict.done,
+            problems: verdict.problems,
+            usage: verifierUsage,
+            termination: verifierResult.termination,
+          },
         });
         await saveRunState(runDir, {
           task,
@@ -1400,11 +1417,11 @@ async function executeLoop(
         const pct = totalCost / task.maxBudgetUsd;
         if (pct >= 1.0) {
           warn(
-            `  Budget exceeded: ${formatCost(totalUsage, 2)} / $${task.maxBudgetUsd.toFixed(2)}`,
+            `  Cost stop target reached: ${formatCost(totalUsage, 2)} / $${task.maxBudgetUsd.toFixed(2)}`,
           );
         } else if (pct >= 0.8) {
           warn(
-            `  Budget warning: ${formatCost(totalUsage, 2)} / $${task.maxBudgetUsd.toFixed(2)} (${(pct * 100).toFixed(0)}%)`,
+            `  Cost stop target warning: ${formatCost(totalUsage, 2)} / $${task.maxBudgetUsd.toFixed(2)} (${(pct * 100).toFixed(0)}%)`,
           );
         }
       }
@@ -1417,9 +1434,11 @@ async function executeLoop(
         stageId: activeStage?.id,
         stageIteration: activeStage ? stageRuntime.stageIteration + 1 : undefined,
         executorOutput: execResult.text,
+        executorTermination: execResult.termination,
         changedFiles,
         judge: gatedJudge,
         verifierVerdict: verdict,
+        verifierTermination: partialIteration.verifierTermination,
         tokensUsed: undefined,
         costUsd: iterationUsage.costUsd,
         usageStatus: iterationUsage.status,
@@ -1983,6 +2002,12 @@ function toProviderErrorSummary(failure: DriverFailure): ProviderErrorSummary {
     statusCode: failure.statusCode,
     message: failure.message,
     retryable: failure.retryable,
+    cliVersion: failure.cliVersion,
+    endType: failure.endType,
+    terminalReason: failure.terminalReason,
+    stopReason: failure.stopReason,
+    isError: failure.isError,
+    exitCode: failure.exitCode,
   };
 }
 

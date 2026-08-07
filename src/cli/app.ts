@@ -33,6 +33,7 @@ import { coerceUsageSummary, formatCost } from "../usage.js";
 import { validateTaskSpec } from "../validation.js";
 import { readVerdictResult } from "../verdict/store.js";
 import { forkRunFromIteration, rewindRunToIteration } from "./checkpointActions.js";
+import { prepareDemoProject } from "./demoProject.js";
 import { runDoctorChecks } from "./doctor.js";
 import { type FolderPickerResult, pickProjectFolder } from "./folderPicker.js";
 import {
@@ -403,7 +404,9 @@ export async function startAppServer(options: {
     // API: Workbench list of live, queued, saved, and resumable runs
     if (url.pathname === "/api/runs" && req.method === "GET") {
       const query = (url.searchParams.get("q") ?? "").trim().toLocaleLowerCase();
-      const savedAll = (await listSavedRuns(stateDir)).filter((run) => matchesRunQuery(run, query));
+      const savedRuns = await listSavedRuns(stateDir);
+      const savedById = new Map(savedRuns.map((run) => [run.runId, run]));
+      const savedAll = savedRuns.filter((run) => matchesRunQuery(run, query));
       const live = (
         await Promise.all(
           [...runningTasks.entries()].map(async ([runId, task]) => {
@@ -415,7 +418,16 @@ export async function startAppServer(options: {
                 item.approvalRequest = actionApprovalRequest(pending);
               }
             }
-            return item;
+            const savedItem = savedById.get(runId);
+            return savedItem
+              ? {
+                  ...item,
+                  pinned: savedItem.pinned,
+                  archived: savedItem.archived,
+                  tags: savedItem.tags,
+                  note: savedItem.note,
+                }
+              : item;
           }),
         )
       ).filter((run) => matchesRunQuery(run, query));
@@ -483,7 +495,8 @@ export async function startAppServer(options: {
 
     // API: Environment preflight for first-run onboarding
     if (url.pathname === "/api/doctor" && req.method === "GET") {
-      const report = await (options.doctorChecks ?? runDoctorChecks)();
+      const repoPath = url.searchParams.get("repoPath")?.trim() || undefined;
+      const report = await (options.doctorChecks ?? runDoctorChecks)(repoPath);
       const providerRequest = report.checks.find((check) => check.code === "provider_request");
       if (providerRequest && toPublicProviderSettings(providerSettings, providerSource).verified) {
         providerRequest.ok = true;
@@ -571,6 +584,14 @@ export async function startAppServer(options: {
       const result = await (options.projectInspector ?? inspectProject)(body.repoPath);
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify(result));
+      return;
+    }
+
+    if (url.pathname === "/api/demo/reset" && req.method === "POST") {
+      const repoPath = await prepareDemoProject(stateDir);
+      const inspection = await (options.projectInspector ?? inspectProject)(repoPath);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ repoPath, inspection }));
       return;
     }
 
@@ -991,7 +1012,8 @@ export async function startAppServer(options: {
         res.end(JSON.stringify({ error: "Invalid run ID" }));
         return;
       }
-      if (runningTasks.has(runId)) {
+      const liveTask = runningTasks.get(runId);
+      if (liveTask && isActiveLiveTask(liveTask)) {
         res.writeHead(409, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Run is already live in the workbench." }));
         return;
@@ -1830,7 +1852,9 @@ function buildCompletedPhaseSnapshot(
   return {
     phase: passed ? "passed" : "failed",
     title: passed ? "任务已通过" : "任务未通过",
-    detail: passed ? "等待你审查并决定是否应用补丁。" : `停止原因：${stopReason}。`,
+    detail: passed
+      ? "等待你审查并决定是否应用补丁。"
+      : `结束原因：${completedStopReasonLabel(stopReason)}。`,
     confidence: "high",
     lanes: {
       executor: latest ? describeExecutorLane(latest) : "没有可展示的执行轮次。",
@@ -1839,6 +1863,22 @@ function buildCompletedPhaseSnapshot(
     },
     latestIteration: latest,
   };
+}
+
+function completedStopReasonLabel(reason: string): string {
+  const labels: Record<string, string> = {
+    approval_required: "等待确认",
+    approval_rejected: "已拒绝",
+    budget_exceeded: "达到费用停止目标",
+    cancelled: "已停止",
+    error: "运行错误",
+    interrupted: "已中断，可继续",
+    max_iterations: "达到轮数上限",
+    no_progress: "没有进展",
+    provider_error: "服务请求未完成",
+    stage_failed: "阶段未通过",
+  };
+  return labels[reason] ?? "未完成";
 }
 
 function providerPhaseTitle(category: string): string {
@@ -1967,6 +2007,11 @@ async function enqueueRun(options: {
   mode: "new" | "resume";
   resumeRunDir?: string;
 }): Promise<number> {
+  const existingTask = options.runningTasks.get(options.runId);
+  if (existingTask?.cleanupTimer) clearTimeout(existingTask.cleanupTimer);
+  if (existingTask?.heartbeatTimer) clearInterval(existingTask.heartbeatTimer);
+  options.queueState.queue = options.queueState.queue.filter((runId) => runId !== options.runId);
+
   const controller = new AbortController();
   const queuedAt = new Date().toISOString();
   const runLabel = options.mode === "resume" ? "Resuming" : "Queued";
@@ -2151,6 +2196,7 @@ async function runQueuedTask(
         patch: result.patch,
         advice: buildRunAdvice({
           stopReason: result.reason,
+          resumable,
           applyStatus: result.applyStatus ?? "pending",
           totalIterations: result.iterations.length,
           totalCostUsd: result.totalCostUsd,
@@ -2570,11 +2616,12 @@ function hasActiveProviderConsumer(
   );
 }
 
+function isActiveLiveTask(task: LiveRunTask): boolean {
+  return ["queued", "running", "waiting_approval", "cancelling"].includes(task.status);
+}
+
 function injectAppDefaults(html: string, sessionToken: string): string {
-  const demoRepoPath = resolve(process.cwd(), "examples/demo-failing-test");
-  return html
-    .replace("__VERDIKT_DEMO_REPO_PATH__", escapeJsString(demoRepoPath))
-    .replace("__VERDIKT_SESSION_TOKEN__", escapeJsString(sessionToken));
+  return html.replace("__VERDIKT_SESSION_TOKEN__", escapeJsString(sessionToken));
 }
 
 function escapeJsString(value: string): string {
@@ -2586,6 +2633,7 @@ function statusForRunActionError(err: unknown): number {
   if (
     message.includes("already applied") ||
     message.includes("already discarded") ||
+    message.includes("already finished") ||
     message.includes("stopped with reason") ||
     message.includes("revalidation_required")
   ) {

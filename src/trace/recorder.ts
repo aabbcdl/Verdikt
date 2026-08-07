@@ -108,6 +108,7 @@ export async function writeSummary(runDir: string, result: RunResult): Promise<v
     evidenceManifestPath: result.evidenceManifestPath ?? null,
     reviewOnly: result.reviewOnly ?? task?.taskMode === "review",
     reviewReport: result.reviewReport ?? null,
+    reviewTermination: result.reviewTermination ?? null,
     partialIteration: result.partialIteration ?? null,
     providerError: result.providerError ?? null,
     resumable: result.resumable ?? false,
@@ -123,6 +124,8 @@ export async function writeSummary(runDir: string, result: RunResult): Promise<v
         costUsd: iter.costUsd ?? null,
         usageStatus: iter.usageStatus ?? iter.usage?.status ?? "unknown",
         usage: iter.usage ?? null,
+        executorTermination: iter.executorTermination ?? null,
+        verifierTermination: iter.verifierTermination ?? null,
 
         // Judge
         judge: {

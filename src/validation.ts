@@ -177,7 +177,7 @@ function validateStages(
       errors.push({
         field: `stages[${i}].maxBudgetUsd`,
         message: "Stage maxBudgetUsd must be a positive number",
-        fix: "Use a value like 2.5 or remove the stage budget",
+        fix: "Use a value like 2.5 or remove the stage cost stop target",
       });
     }
     if (stage.requireApproval !== undefined && typeof stage.requireApproval !== "boolean") {

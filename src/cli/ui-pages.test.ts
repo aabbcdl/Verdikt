@@ -243,6 +243,17 @@ describe("static report pages", () => {
       expect(html).toContain(title);
       expect(html).toContain("--bg: #f4f7fb");
       expect(html).toContain("--surface: #ffffff");
+      expect(html).toContain("budget_exceeded: '达到费用停止目标'");
+      expect(html).not.toContain("budget_exceeded: '预算已用完'");
+    }
+  });
+
+  it("documents the cost stop target without promising a hard cap", async () => {
+    for (const fileName of ["README.md", "USAGE_GUIDE.md"]) {
+      const content = await readFile(join(process.cwd(), fileName), "utf-8");
+      expect(content).toContain("费用停止目标");
+      expect(content).toContain("费用未知或不完整时只能提醒，实际费用可能超过目标");
+      expect(content).not.toContain("预算上限");
     }
   });
 

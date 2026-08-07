@@ -10,6 +10,7 @@ export interface RunAdvice {
 
 export interface RunSummaryForAdvice {
   stopReason?: string;
+  resumable?: boolean;
   applyStatus?: string;
   totalIterations?: number;
   totalCostUsd?: number;
@@ -123,26 +124,48 @@ export function buildRunAdvice(summary: RunSummaryForAdvice | null | undefined):
         kind: "danger",
         title: "达到最大轮数，仍未通过",
         summary: "执行 agent 多轮尝试后仍没有满足验收或审查要求。",
-        nextActions: [
-          "查看最后一轮失败证据和审查意见。",
-          "如果方向是对的，点击继续运行增加几轮。",
-          "如果方向不对，修改任务目标或验收命令后重新运行。",
-        ],
+        nextActions:
+          summary.resumable === true
+            ? [
+                "查看最后一轮失败证据和审查意见。",
+                "如果方向是对的，点击继续运行增加几轮。",
+                "如果方向不对，修改任务目标或验收命令后重新运行。",
+              ]
+            : [
+                "查看最后一轮失败证据和审查意见。",
+                "如果方向是对的，提高最多轮数后重新运行。",
+                "如果方向不对，修改任务目标或验收命令后重新运行。",
+              ],
         evidence: latestEvidence(summary),
       };
 
-    case "budget_exceeded":
+    case "budget_exceeded": {
+      const usageStatus = text(
+        summary.usage?.status ?? summary.usageStatus,
+        summary.totalCostUsd !== undefined ? "complete" : "unknown",
+      );
       return {
         kind: "warning",
-        title: "预算用完，任务已停止",
-        summary: "Verdikt 在达到预算上限后停止，避免继续消耗。",
-        nextActions: [
-          "先看最后一轮是否已经接近完成。",
-          "如果值得继续，可以提高预算后继续运行。",
-          "如果方向不对，先缩小任务范围再重新运行。",
-        ],
+        title: "达到费用停止目标，任务已停止",
+        summary:
+          usageStatus === "complete"
+            ? "费用数据完整；记录到的费用达到设定目标后，这次运行停止。"
+            : "已知费用已达到停止目标，但费用数据不完整；实际费用可能更高。",
+        nextActions:
+          summary.resumable === true
+            ? [
+                "先看最后一轮是否已经接近完成。",
+                "如果值得继续，点击继续运行。",
+                "如果方向不对，先缩小任务范围再重新运行。",
+              ]
+            : [
+                "先看最后一轮是否已经接近完成。",
+                "如果值得继续，提高费用停止目标后重新运行。",
+                "如果方向不对，先缩小任务范围再重新运行。",
+              ],
         evidence: latestEvidence(summary),
       };
+    }
 
     case "no_progress":
       return {
@@ -186,11 +209,26 @@ export function buildRunAdvice(summary: RunSummaryForAdvice | null | undefined):
       return {
         kind: "warning",
         title: "运行没有成功完成",
-        summary: `当前停止原因是 ${stopReason}。`,
+        summary: `当前状态是 ${stopReasonLabel(stopReason)}。`,
         nextActions: ["查看详情确认失败原因。", "根据最后一轮审查意见决定继续或丢弃。"],
         evidence: latestEvidence(summary),
       };
   }
+}
+
+function stopReasonLabel(reason: string): string {
+  const labels: Record<string, string> = {
+    approval_required: "等待确认",
+    approval_rejected: "已拒绝",
+    cancelled: "已停止",
+    error: "运行错误",
+    interrupted: "已中断，可继续",
+    max_iterations: "达到轮数上限",
+    no_progress: "没有进展",
+    provider_error: "服务请求未完成",
+    stage_failed: "阶段未通过",
+  };
+  return labels[reason] ?? "未完成";
 }
 
 function latestEvidence(summary: RunSummaryForAdvice): string[] {

@@ -296,9 +296,7 @@ export async function readTaskForSavedRun(
 
 export async function buildRunStats(stateDirInput: string): Promise<RunStats> {
   const runs = await listSavedRuns(stateDirInput);
-  const visibleRuns = runs.filter(
-    (run) => !run.archived && run.runSource !== "test" && run.runSource !== "benchmark",
-  );
+  const visibleRuns = runs.filter((run) => !run.archived && run.runSource === "user");
   const completedRuns = visibleRuns.filter((run) => !run.resumable);
   const passed = visibleRuns.filter((run) => run.status === "passed").length;
   const pendingPatches = visibleRuns.filter(

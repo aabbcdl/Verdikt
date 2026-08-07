@@ -27,6 +27,7 @@ describe("buildRunAdvice", () => {
     const advice = buildRunAdvice(
       summary({
         stopReason: "max_iterations",
+        resumable: true,
         iterations: [
           {
             judge: { passed: false, failedChecks: ["test"], summary: "1/1 required failed" },
@@ -46,11 +47,23 @@ describe("buildRunAdvice", () => {
   });
 
   it("separates budget failures from code failures", () => {
-    const advice = buildRunAdvice(summary({ stopReason: "budget_exceeded", totalCostUsd: 5 }));
+    const advice = buildRunAdvice(
+      summary({ stopReason: "budget_exceeded", totalCostUsd: 5, usageStatus: "complete" }),
+    );
 
     expect(advice.kind).toBe("warning");
-    expect(advice.title).toContain("预算");
-    expect(advice.nextActions.join("\n")).toContain("提高预算");
+    expect(advice.title).toContain("费用停止目标");
+    expect(advice.summary).toContain("费用数据完整");
+    expect(advice.nextActions.join("\n")).toContain("提高费用停止目标");
+  });
+
+  it("does not promise a hard cost cap when cost data is incomplete", () => {
+    const advice = buildRunAdvice(
+      summary({ stopReason: "budget_exceeded", totalCostUsd: 5, usageStatus: "partial" }),
+    );
+
+    expect(advice.summary).toContain("费用数据不完整");
+    expect(advice.summary).toContain("实际费用可能更高");
   });
 
   it("gives an actionable next step for provider failures", () => {

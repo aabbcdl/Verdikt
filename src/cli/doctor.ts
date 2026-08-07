@@ -42,7 +42,7 @@ export async function handleDoctor(args: string[] = []): Promise<void> {
   );
 }
 
-export async function runDoctorChecks(): Promise<DoctorReport> {
+export async function runDoctorChecks(repoPath?: string): Promise<DoctorReport> {
   const { exec } = await import("node:child_process");
   const install = claudeInstallGuidance();
 
@@ -51,12 +51,13 @@ export async function runDoctorChecks(): Promise<DoctorReport> {
     name: string,
     cmd: string,
     required = true,
+    cwd?: string,
   ): Promise<DoctorCheck> {
     return new Promise<DoctorCheck>((resolveCheck) => {
       try {
         exec(
           cmd,
-          { encoding: "utf-8", timeout: 8_000, windowsHide: true },
+          { encoding: "utf-8", timeout: 8_000, windowsHide: true, ...(cwd ? { cwd } : {}) },
           (err: ExecException | null, stdout: string) => {
             if (err) {
               resolveCheck({ code, name, ok: false, detail: "未找到或无法运行", required });
@@ -77,12 +78,23 @@ export async function runDoctorChecks(): Promise<DoctorReport> {
     });
   }
 
+  const selectedRepoPath = repoPath?.trim() ? resolve(repoPath) : undefined;
+  const worktreeCheck: Promise<DoctorCheck> = selectedRepoPath
+    ? check("git_worktree", "Git worktree", "git worktree list", true, selectedRepoPath)
+    : Promise.resolve({
+        code: "git_worktree",
+        name: "Git worktree",
+        ok: true,
+        detail: "选择项目后检查",
+        required: true,
+        verification: "not_checked",
+      });
   const [node, claude, git, pnpm, worktree] = await Promise.all([
     check("node", "Node.js", "node --version"),
     check("claude", "Claude Code", "claude --version"),
     check("git", "Git", "git --version"),
     check("pnpm", "pnpm", "pnpm --version", false),
-    check("git_worktree", "Git worktree", "git worktree list"),
+    worktreeCheck,
   ]);
   if (!node.ok) node.fix = "安装 Node.js 20 或更新版本。";
   if (!git.ok) git.fix = "安装 Git 后重新检查。";

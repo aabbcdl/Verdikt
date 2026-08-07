@@ -67,7 +67,7 @@ describe("stage plan", () => {
     expect(isStageComplete({ task: TASK, runtime, judge: JUDGE_PASS, verdict: DONE })).toBe(true);
   });
 
-  it("reports stage iteration and budget limits without silently advancing", () => {
+  it("reports stage iteration limits and cost stop targets without silently advancing", () => {
     const iterationLimited = { ...createStageRuntime(TASK), stageIteration: 2 };
     expect(stageLimitFailure(TASK, iterationLimited)).toContain("iteration");
 
@@ -77,6 +77,6 @@ describe("stage plan", () => {
     };
     expect(
       stageLimitFailure(budgetTask, { ...createStageRuntime(budgetTask), stageCostUsd: 1.1 }),
-    ).toContain("budget");
+    ).toContain("cost stop target");
   });
 });

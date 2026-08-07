@@ -166,6 +166,8 @@ node dist/index.js init fix-login-bug D:\project\my-app
 }
 ```
 
+`maxBudgetUsd` 表示单次运行的费用停止目标，不是保证不会超过的硬上限。费用数据完整时，Verdikt 会在记录到的费用达到目标后停止；费用未知或不完整时只能提醒，实际费用可能超过目标。缺失的费用不会按零计算。
+
 运行：
 
 ```bash
@@ -381,9 +383,15 @@ Benchmark 的平均花费只使用有可靠数值的样本，并显示覆盖了�
 
 ## 运行记录保存在哪里
 
-所有运行记录默认写入**启动 Verdikt 时所在目录**下的 `.verdikt/`（不是目标项目里）。也就是说，从不同目录启动 `verdikt` 会看到不同的历史记录。
+所有运行记录默认写入固定的系统数据目录，不会再因为从不同目录启动 Verdikt 而分散：
 
-想固定或迁移记录位置，设置环境变量 `VERDIKT_STATE_DIR`：
+- Windows：`%LOCALAPPDATA%\\Verdikt`
+- macOS：`~/Library/Application Support/Verdikt`
+- Linux：`$XDG_STATE_HOME/verdikt`，未设置时使用 `~/.local/state/verdikt`
+
+如果旧版本在启动项目的 `.verdikt` 中留下过记录，首次启动时会把它们复制到新目录，旧目录会保留不动。
+
+想改用其他位置或迁移记录，设置环境变量 `VERDIKT_STATE_DIR`：
 
 ```powershell
 $env:VERDIKT_STATE_DIR = "D:\verdikt-data"

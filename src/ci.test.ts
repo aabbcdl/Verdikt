@@ -39,6 +39,9 @@ describe("release quality gates", () => {
     expect(pkg.scripts?.["security:scan"]).toContain("tsx src/security/scan.ts");
     expect(pkg.scripts?.["stress:ci"]).toContain("tsx src/index.ts stress");
     expect(pkg.scripts?.["vscode:compile"]).toContain("pnpm --dir apps/vscode compile");
+    expect(pkg.scripts?.["release:connected"]).toContain("tsx src/release/connectedTask.ts");
+    expect(pkg.scripts?.["release:check"]).toContain("pnpm quality");
+    expect(pkg.scripts?.["release:check"]).toContain("pnpm release:connected");
     expect(pkg.scripts?.prepack).toContain("pnpm build");
 
     expect(ci).toContain("corepack enable");
@@ -57,6 +60,7 @@ describe("release quality gates", () => {
     expect(pkg.files).toEqual([
       "dist/",
       "apps/ui/",
+      "assets/demo-project/",
       "scripts/",
       "README.md",
       "USAGE_GUIDE.md",

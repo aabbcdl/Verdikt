@@ -1,12 +1,16 @@
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
+import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetConfig, setConfig } from "../config.js";
 import type { ProviderProbeResult } from "../provider/types.js";
 import { startAppServer } from "./app.js";
 
 const servers: Array<{ close: () => Promise<void> }> = [];
+const execFileAsync = promisify(execFile);
 let tempDir = "";
 let stateDir = "";
 
@@ -131,6 +135,56 @@ describe("app first-run setup APIs", () => {
     expect(inspected.recommendedSteps[0]).toEqual(
       expect.objectContaining({ command: "pnpm", args: ["run", "test"] }),
     );
+  });
+
+  it("creates and resets a dependency-free demo project inside the state directory", async () => {
+    const app = await startAppServer({ port: 0, logStartup: false });
+    servers.push(app);
+
+    const firstResponse = await appFetch(app, "/api/demo/reset", { method: "POST" });
+    const first = (await firstResponse.json()) as {
+      repoPath: string;
+      inspection: {
+        ok: boolean;
+        git: { isRepository: boolean; clean: boolean };
+        recommendedSteps: Array<{ id: string; command: string; args: string[] }>;
+      };
+    };
+
+    expect(firstResponse.status).toBe(200);
+    const relativeDemoPath = relative(stateDir, first.repoPath);
+    expect(relativeDemoPath.startsWith("..")).toBe(false);
+    expect(isAbsolute(relativeDemoPath)).toBe(false);
+    expect(first.inspection).toEqual(
+      expect.objectContaining({
+        ok: true,
+        git: expect.objectContaining({ isRepository: true, clean: true }),
+        recommendedSteps: [expect.objectContaining({ id: "test", command: "npm", args: ["test"] })],
+      }),
+    );
+    expect(await readFile(join(first.repoPath, "src", "sum.js"), "utf-8")).toContain("a - b");
+    expect(existsSync(join(first.repoPath, "node_modules"))).toBe(false);
+    await expect(
+      execFileAsync(process.execPath, ["--test"], { cwd: first.repoPath }),
+    ).rejects.toThrow();
+
+    await writeFile(
+      join(first.repoPath, "src", "sum.js"),
+      "export const sum = (a, b) => a + b;\n",
+      "utf-8",
+    );
+    await writeFile(join(first.repoPath, "temporary.txt"), "remove me", "utf-8");
+
+    const resetResponse = await appFetch(app, "/api/demo/reset", { method: "POST" });
+    const reset = (await resetResponse.json()) as { repoPath: string };
+    expect(resetResponse.status).toBe(200);
+    expect(reset.repoPath).toBe(first.repoPath);
+    expect(await readFile(join(reset.repoPath, "src", "sum.js"), "utf-8")).toContain("a - b");
+    expect(existsSync(join(reset.repoPath, "temporary.txt"))).toBe(false);
+    const { stdout } = await execFileAsync("git", ["status", "--porcelain=v1"], {
+      cwd: reset.repoPath,
+    });
+    expect(stdout).toBe("");
   });
 });
 
